@@ -1,0 +1,1244 @@
+<title>סימולטור ראיון אימות חומרה</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Rubik:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one centered column like a lab notebook; the question card is drawn as a scope screen, topics wear oscilloscope channel colors (CH1 amber, CH2 cyan, CH3 magenta, CH4 blue). */
+:root{
+  --bg:#edf1ef; --surface:#fbfcfb; --sunk:#e2e8e5; --ink:#14201b; --muted:#53635d; --line:#cdd8d3; --grid:rgba(20,32,27,.055);
+  --ch1:#9a6600; --ch2:#0a7a8b; --ch3:#a2296c; --ch4:#2c52bd;
+  --ch1-soft:#f5e6c0; --ch2-soft:#d2edf1; --ch3-soft:#f3d8e6; --ch4-soft:#dae3f9;
+  --good:#1f7a49; --good-soft:#d6efe1; --warn:#a35f00; --bad:#b8382a; --bad-soft:#f6dcd8;
+  --btn-ink:#fbfcfb;
+  --f-display:"Rubik","Assistant",system-ui,sans-serif;
+  --f-body:"Assistant","Rubik",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0b1110; --surface:#121a18; --sunk:#0e1614; --ink:#e2ebe7; --muted:#8e9f98; --line:#23302c; --grid:rgba(120,210,180,.06);
+  --ch1:#f0c03a; --ch2:#3cc9de; --ch3:#ef62b0; --ch4:#7d9af7;
+  --ch1-soft:rgba(240,192,58,.14); --ch2-soft:rgba(60,201,222,.14); --ch3-soft:rgba(239,98,176,.14); --ch4-soft:rgba(125,154,247,.15);
+  --good:#4fc987; --good-soft:rgba(79,201,135,.14); --warn:#f0a43a; --bad:#f07161; --bad-soft:rgba(240,113,97,.14);
+  --btn-ink:#0b1110; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0b1110; --surface:#121a18; --sunk:#0e1614; --ink:#e2ebe7; --muted:#8e9f98; --line:#23302c; --grid:rgba(120,210,180,.06);
+  --ch1:#f0c03a; --ch2:#3cc9de; --ch3:#ef62b0; --ch4:#7d9af7;
+  --ch1-soft:rgba(240,192,58,.14); --ch2-soft:rgba(60,201,222,.14); --ch3-soft:rgba(239,98,176,.14); --ch4-soft:rgba(125,154,247,.15);
+  --good:#4fc987; --good-soft:rgba(79,201,135,.14); --warn:#f0a43a; --bad:#f07161; --bad-soft:rgba(240,113,97,.14);
+  --btn-ink:#0b1110; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3,h4{font-family:var(--f-display);line-height:1.25;text-wrap:balance;margin:0}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+code{background:var(--sunk);padding:.08em .35em;border-radius:4px;direction:ltr;unicode-bidi:isolate}
+a{color:var(--ch2)}
+:focus-visible{outline:2px solid var(--ch2);outline-offset:2px}
+
+/* header */
+header.top{padding-block:28px 18px}
+.brandrow{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;direction:ltr;text-align:right}
+header.top h1{font-size:clamp(26px,4.6vw,38px);font-weight:700;margin-top:4px}
+header.top .sub{color:var(--muted);margin-top:6px;max-width:62ch}
+.trace{width:220px;max-width:100%;height:56px;flex:none}
+.trace polyline{fill:none;stroke-width:2;stroke-linejoin:round}
+
+/* tabs */
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto;padding-block:0}
+nav.tabs button{font:600 16px var(--f-body);color:var(--muted);background:none;border:0;padding:12px 14px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ch1)}
+main{padding-block:24px 64px}
+
+/* buttons */
+.btn{font:600 16px var(--f-body);border-radius:8px;padding:10px 18px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:inline-flex;align-items:center;gap:8px;line-height:1.2}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--ink);color:var(--btn-ink);border-color:var(--ink)}
+.btn.primary:hover{opacity:.9}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.small{font-size:14px;padding:6px 12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+kbd{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--muted)}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px}
+.stack{display:grid;gap:18px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.label{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+
+/* home */
+.hero{display:grid;gap:14px}
+.hero h2{font-size:clamp(22px,3.4vw,28px)}
+.settings{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:max-content;max-width:100%}
+.seg button{font:600 14px var(--f-body);padding:7px 12px;background:var(--surface);color:var(--muted);border:0;border-inline-start:1px solid var(--line);cursor:pointer}
+.seg button:first-child{border-inline-start:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--btn-ink)}
+ol.stages{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:st}
+ol.stages li{display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--line);counter-increment:st}
+ol.stages li:first-child{border-top:0}
+ol.stages li::before{content:counter(st);font-family:var(--f-mono);font-weight:500;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--ch1);color:var(--ch1);display:grid;place-items:center;font-size:15px}
+ol.stages .nm{font-family:var(--f-display);font-weight:600;font-size:17px}
+ol.stages .meta{font-size:14px;color:var(--muted)}
+.mini{height:5px;border-radius:3px;background:var(--sunk);overflow:hidden;margin-top:6px;max-width:220px}
+.mini i{display:block;height:100%;background:var(--good)}
+@media (max-width:560px){ol.stages li{grid-template-columns:36px 1fr}ol.stages li .btn{grid-column:2;justify-self:start}}
+
+/* session */
+.qtop{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.crumbs{font-size:15px;color:var(--muted)}
+.crumbs b{color:var(--ink);font-family:var(--f-display);font-weight:600}
+.timer{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);direction:ltr}
+.timer.over{color:var(--warn)}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:18px}
+.bar i{display:block;height:100%;background:var(--ch1);transition:width .3s}
+.qcard{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.qhead{padding:22px 22px 20px;border-bottom:1px solid var(--line);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:32px 32px;background-position:-1px -1px}
+.qmeta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:14px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13px;padding:2px 10px;border-radius:999px;background:var(--tcs);color:var(--tc)}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--tc)}
+.diff{display:inline-flex;gap:3px;align-items:center;color:var(--muted)}
+.diff i{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--muted)}
+.diff i.on{background:var(--muted)}
+.who{color:var(--muted)}
+.ctx{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:16px}
+.ctx b{font-family:var(--f-display);font-weight:600}
+.qtext{font-size:clamp(20px,3vw,25px);font-weight:600}
+.qbody{padding:20px 22px 22px;display:grid;gap:16px}
+textarea{width:100%;min-height:120px;resize:vertical;font:16px/1.55 var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+textarea:focus{outline:2px solid var(--ch2);outline-offset:0;border-color:transparent}
+.hint{background:var(--ch1-soft);border-radius:8px;padding:10px 14px}
+.hint b{color:var(--ch1)}
+.opts{display:grid;gap:8px}
+.opt{text-align:right;font:500 17px var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;cursor:pointer;display:flex;gap:12px;align-items:center}
+.opt:hover:not(:disabled){border-color:var(--muted)}
+.opt .k{font-family:var(--f-mono);font-size:13px;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;flex:none}
+.opt.right{border-color:var(--good);background:var(--good-soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.opt:disabled{cursor:default}
+.reveal{border-top:1px solid var(--line);padding:20px 22px 22px;display:grid;gap:18px;background:var(--bg)}
+.reveal h4{font-size:16px;margin-bottom:8px}
+ul.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+ul.checks label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;padding:6px 8px;border-radius:6px}
+ul.checks label:hover{background:var(--sunk)}
+ul.checks input{margin-top:6px;width:17px;height:17px;accent-color:var(--good);flex:none}
+ul.plain{margin:0;padding-inline-start:20px;display:grid;gap:4px}
+.scoreline{display:flex;gap:12px;align-items:center;font-weight:600}
+.meter{flex:1;height:8px;background:var(--sunk);border-radius:4px;overflow:hidden;max-width:260px}
+.meter i{display:block;height:100%;background:var(--good);transition:width .25s}
+.ans{line-height:1.65}
+.look{border-inline-start:3px solid var(--ch3);padding-inline-start:12px;color:var(--muted)}
+.look b{color:var(--ch3)}
+.follow{border-inline-start:3px solid var(--ch4);padding-inline-start:12px}
+pre.code{direction:ltr;text-align:left;background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto;margin:0;font:13.5px/1.55 var(--f-mono);white-space:pre}
+.verdict{border-radius:8px;padding:10px 14px;font-weight:600}
+.verdict.good{background:var(--good-soft);color:var(--good)}
+.verdict.bad{background:var(--bad-soft);color:var(--bad)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.actions .spacer{flex:1}
+.keys{font-size:13px;color:var(--muted);margin-top:12px}
+
+/* stage intro */
+.intro h2{font-size:clamp(22px,3.4vw,30px)}
+.intro .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.intro ul{margin:6px 0 0;padding-inline-start:20px;display:grid;gap:4px}
+.facts{display:flex;gap:22px;flex-wrap:wrap;font-size:15px}
+.facts div{display:grid}
+
+/* stats */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.tile .v{font-family:var(--f-display);font-weight:700;font-size:28px;font-variant-numeric:tabular-nums}
+.tile .l{font-size:14px;color:var(--muted)}
+.bars{display:grid;gap:10px}
+.brow{display:grid;grid-template-columns:minmax(120px,190px) 1fr 52px;gap:12px;align-items:center;font-size:15px}
+.brow .track{height:10px;background:var(--sunk);border-radius:5px;overflow:hidden}
+.brow .track i{display:block;height:100%;border-radius:5px}
+.brow .pct{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;text-align:left;direction:ltr}
+.qlist{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.qlist li{padding:10px 0;border-top:1px solid var(--line);display:flex;gap:10px;align-items:baseline;justify-content:space-between}
+.qlist li:first-child{border-top:0}
+.tag{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.tag.skip{background:var(--ch4-soft);color:var(--ch4)}
+.tag.weak{background:var(--bad-soft);color:var(--bad)}
+.big{font-family:var(--f-display);font-weight:700;font-size:clamp(44px,8vw,64px);line-height:1;font-variant-numeric:tabular-nums}
+
+/* bank */
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+select,input[type="search"]{font:16px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;width:100%}
+details.bq{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+details.bq+details.bq{margin-top:8px}
+details.bq summary{cursor:pointer;padding:14px 16px;display:flex;gap:10px;align-items:baseline;list-style:none}
+details.bq summary::-webkit-details-marker{display:none}
+details.bq summary .qt{flex:1;font-weight:600;min-width:0}
+details.bq[open] summary{border-bottom:1px solid var(--line)}
+details.bq .inner{padding:14px 16px 18px;display:grid;gap:14px}
+.hs{font-family:var(--f-mono);font-size:12px;color:var(--muted);white-space:nowrap;direction:ltr}
+
+/* guide */
+.toc{display:flex;flex-wrap:wrap;gap:8px}
+.toc a{font-size:14px;font-weight:600;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--surface)}
+.toc a:hover{border-color:var(--muted)}
+.guide section{scroll-margin-top:70px}
+.guide h2{font-size:24px;margin-bottom:12px}
+.guide h3{font-size:18px;margin:18px 0 8px}
+.guide p+p{margin-top:10px}
+.guide ul,.guide ol{padding-inline-start:22px;margin:8px 0;display:grid;gap:5px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:15px;min-width:620px}
+th,td{text-align:right;padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+thead th{border-top:0;background:var(--sunk);font-family:var(--f-display);font-weight:600;font-size:14px}
+dl.terms{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:0;margin:0}
+dl.terms dt,dl.terms dd{padding:9px 0;border-top:1px solid var(--line);margin:0}
+dl.terms dt{font-family:var(--f-mono);font-weight:500;font-size:14px;color:var(--ch2);padding-inline-end:12px}
+.formula{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+.formula div{background:var(--sunk);border-radius:8px;padding:10px 12px}
+.formula .eq{font-family:var(--f-mono);font-size:14px;direction:ltr;text-align:left;display:block;margin-top:4px}
+.note{background:var(--ch4-soft);border-radius:8px;padding:12px 14px;font-size:15px}
+footer{color:var(--muted);font-size:13px;padding-block:0 32px}
+@media (max-width:560px){
+  body{font-size:16px}
+  .panel,.qhead,.qbody,.reveal{padding-inline:16px}
+  .brow{grid-template-columns:1fr 46px}.brow .nm{grid-column:1/-1}
+  dl.terms{grid-template-columns:1fr}dl.terms dd{border-top:0;padding-top:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div dir="rtl" lang="he">
+<header class="top">
+  <div class="wrap brandrow">
+    <div>
+      <div class="eyebrow">Hardware Verification · Interview Simulator</div>
+      <h1>סימולטור ראיון: מהנדס/ת אימות חומרה</h1>
+      <p class="sub">מותאם לדרישות המשרה באלביט מערכות. 7 שלבים כמו בתהליך הגיוס האמיתי, 100 שאלות, תשובות מומלצות, שאלות המשך ובדיקה עצמית.</p>
+    </div>
+    <svg class="trace" viewBox="0 0 220 56" aria-hidden="true">
+      <polyline style="stroke:var(--ch1)" points="0,10 18,10 18,24 34,24 34,10 50,10 50,24 66,24 66,10 82,10 82,24 98,24 98,10 114,10 114,24 130,24 130,10 146,10 146,24 162,24 162,10 178,10 178,24 194,24 194,10 220,10"/>
+      <polyline style="stroke:var(--ch2)" points="0,46 12,46 12,32 44,32 44,46 76,46 76,32 92,32 92,46 124,46 124,32 172,32 172,46 220,46"/>
+    </svg>
+  </div>
+</header>
+<nav class="tabs" aria-label="ניווט">
+  <div class="wrap" role="tablist">
+    <button role="tab" data-tab="sim" aria-selected="true">סימולציה</button>
+    <button role="tab" data-tab="bank" aria-selected="false">בנק שאלות</button>
+    <button role="tab" data-tab="guide" aria-selected="false">מדריך הכנה</button>
+    <button role="tab" data-tab="progress" aria-selected="false">ההתקדמות שלי</button>
+  </div>
+</nav>
+<main class="wrap">
+  <div id="app"></div>
+
+  <div id="guide" class="guide stack" hidden>
+    <div class="panel stack">
+      <h2>מדריך הכנה</h2>
+      <p class="muted">כל מה שכדאי לדעת לפני הראיון, מסודר לפי נושא. השאלות בסימולציה בנויות על החומר הזה.</p>
+      <nav class="toc" aria-label="תוכן המדריך">
+        <a href="#g-process">תהליך הגיוס</a><a href="#g-job">פירוק המשרה</a><a href="#g-cheat">שליף טכני</a><a href="#g-terms">מילון מונחים</a><a href="#g-python">Python לבדיקות</a><a href="#g-star">סיפורי STAR</a><a href="#g-ask">שאלות למראיינים</a><a href="#g-day">יום הראיון</a><a href="#g-clear">סיווג ביטחוני</a><a href="#g-src">מקורות</a>
+      </nav>
+    </div>
+
+    <section id="g-process" class="panel">
+      <h2>תהליך הגיוס</h2>
+      <p>לפי דיווחי מועמדים ומכוני הכנה, התהליך באלביט כולל בדרך כלל את השלבים הבאים. הסדר והמספר משתנים בין יחידות ותפקידים.</p>
+      <ol>
+        <li><b>שיחת סינון טלפונית</b> עם מגייס/ת או עם המנהל/ת הישיר/ה. בודקים התאמה בסיסית, מוטיבציה, זמינות ושכר.</li>
+        <li><b>ראיון מקצועי</b> עם ראש הצוות ולעיתים שני מנהלי תחום. שאלות טכניות, ציור על הלוח, תרחישי תקלות.</li>
+        <li><b>תרגיל מעשי או מבחן בית</b> (לא תמיד). מועמד ל-QA דיווח על משימת בית: לכתוב STP למכשיר תקשורת.</li>
+        <li><b>ראיון מנהל/ת מחלקה</b>: בגרות מקצועית, עבודה בממשקים, התאמה לצוות.</li>
+        <li><b>ראיון משאבי אנוש</b>: התאמה אישית לסביבת העבודה.</li>
+        <li><b>מבדקים</b>: מבחנים קוגניטיביים ושאלון אישיות, במשרדי החברה או במכון חיצוני, ולפעמים דינמיקה קבוצתית. הציון הסופי משקלל ראיונות ומבדקים. התוצאות נשמרות כמה חודשים, ולרוב אי אפשר להיבחן שוב בתקופה הזו.</li>
+        <li><b>סיווג ביטחוני</b>: רץ במקביל וכולל שאלון ותחקיר. הצעת שכר מגיעה לעיתים רק אחרי אישור ראשוני.</li>
+      </ol>
+      <p class="note">לפי Glassdoor, משך התהליך הממוצע באלביט הוא כ-34 יום (על בסיס 228 דיווחים). בפועל הסיווג הביטחוני יכול להאריך אותו.</p>
+    </section>
+
+    <section id="g-job" class="panel">
+      <h2>פירוק המשרה: מה ישאלו על כל שורה</h2>
+      <h3>דרישות</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>דרישה במודעה</th><th>מה כנראה ייבדק</th><th>מה להכין</th></tr></thead>
+        <tbody>
+          <tr><td>תואר בהנדסת חשמל</td><td>יסודות: מגברים, מחלקי מתח, ספקים, setup/hold, Nyquist</td><td>לפתור בעל-פה הגבר, מחלק, הספק על LDO</td></tr>
+          <tr><td>SPI, I2C, Ethernet, UART</td><td>מבנה מסגרת, הבדלים, pull-ups, SPI modes, דיבוג עם סקופ ולוג׳יק אנלייזר</td><td>טבלת השוואה בעל-פה + שני סיפורי דיבוג אמיתיים</td></tr>
+          <tr><td>ADC, DAC</td><td>מפרטים (INL, DNL, SNR, ENOB, SFDR), aliasing, שיטות בדיקה</td><td>לחשב LSB ו-SNR, לתאר בדיקה סטטית ודינמית</td></tr>
+          <tr><td>סכמות, דפי נתונים ו-Bring-up</td><td>סדר פעולות ב-bring-up, מה בודקים בסכמה ובדף נתונים</td><td>להסביר bring-up צעד-צעד בלי לגמגם</td></tr>
+          <tr><td>סקופ, לוג׳יק אנלייזר, ספקטרום אנלייזר, ספקים</td><td>בחירת רוחב פס ופרוב, מדידת ripple, RBW, הגבלת זרם</td><td>לדבר כמו מי שעבד במעבדה: הגדרות, טעויות נפוצות</td></tr>
+          <tr><td>אוטומציה ו-Python</td><td>PyVISA, SCPI, pyserial, מבנה עמדת בדיקה, קוד קצר על הלוח</td><td>לכתוב בלי מחשב: שליטה במודד, שדה ביטים, בדיקת גבולות</td></tr>
+          <tr><td>סביבה מולטידיסציפלינרית</td><td>עבודה מול FPGA, תוכנה ותכנון כרטיסים, מחלוקות</td><td>סיפור STAR על שיתוף פעולה ועל מחלוקת</td></tr>
+        </tbody>
+      </table></div>
+      <h3>תחומי אחריות</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>בתפקיד</th><th>מה זה אומר</th><th>שאלה צפויה</th></tr></thead>
+        <tbody>
+          <tr><td>הובלת POD (Proof Of Design)</td><td>הוכחה שהתכנון עומד בכל הדרישות לפני ייצור: אפיון מלא, קצוות, שולי תכנון</td><td>מה ההבדל בין POD ל-ATP?</td></tr>
+          <tr><td>אימות מפיתוח ועד ייצור</td><td>מעורבות לאורך כל מחזור החיים, מ-bring-up ועד בדיקות ייצור</td><td>איך בונים תוכנית אימות לכרטיס חדש?</td></tr>
+          <tr><td>NPI</td><td>העברת המוצר לייצור: ATP, עמדות ATE, גבולות, תשואה</td><td>מה תפקידך במעבר לייצור?</td></tr>
+          <tr><td>חקר תקלות דרג ד׳</td><td>תחזוקה ברמת היצרן: תחקור יחידות שחזרו מהשטח, ברמת כרטיס ומערכת, עד שורש הבעיה</td><td>יחידה חזרה עם תקלה לסירוגין. מה עושים?</td></tr>
+          <tr><td>עבודה עם FPGA, Software, board design, ATE</td><td>ממשק יומיומי עם כל הצוותים</td><td>ספר/י על מחלוקת עם מפתח</td></tr>
+          <tr><td>מסמכי בדיקה ודוחות אימות</td><td>STP, STD, STR, VCRM, דוחות POD</td><td>מה נכנס ב-STP? כתוב/כתבי נוהל לדרישה</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="g-cheat" class="panel">
+      <h2>שליף טכני</h2>
+      <h3>ממשקי תקשורת</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>ממשק</th><th>קווים</th><th>סוג</th><th>טופולוגיה</th><th>מהירות טיפוסית</th><th>לזכור</th></tr></thead>
+        <tbody>
+          <tr><td>UART</td><td>TX, RX (+GND)</td><td>אסינכרוני</td><td>נקודה-לנקודה</td><td>9600 עד ~1Mbps</td><td>8N1 = 10 ביטים לבייט, LSB ראשון</td></tr>
+          <tr><td>SPI</td><td>SCLK, MOSI, MISO, CS</td><td>סינכרוני, full-duplex</td><td>מאסטר אחד, CS לכל רכיב</td><td>1–50MHz+</td><td>CPOL/CPHA, אין ACK</td></tr>
+          <tr><td>I2C</td><td>SCL, SDA</td><td>סינכרוני, half-duplex</td><td>בוס עם כתובות, multi-master</td><td>100k / 400k / 1MHz</td><td>open-drain + pull-up, ACK לכל בייט</td></tr>
+          <tr><td>RS-485</td><td>זוג דיפרנציאלי</td><td>דיפרנציאלי</td><td>multi-drop, כמה משדרים</td><td>עד 10Mbps</td><td>טרמינציה 120Ω בקצוות</td></tr>
+          <tr><td>Ethernet</td><td>2–4 זוגות</td><td>דיפרנציאלי, magnetics</td><td>נקודה-לנקודה לסוויץ׳</td><td>10/100/1000Mbps</td><td>MAC↔PHY ב-RGMII, ניהול ב-MDIO</td></tr>
+          <tr><td>MIL-STD-1553</td><td>זוג מסוכך, אפיק כפול</td><td>Manchester II</td><td>BC + עד 31 RT</td><td>1Mbps</td><td>צימוד שנאים, מילה של 20 ביט</td></tr>
+        </tbody>
+      </table></div>
+      <h3>נוסחאות שכדאי לדעת בעל-פה</h3>
+      <div class="formula">
+        <div>גודל LSB<span class="eq">LSB = Vref / 2^N</span></div>
+        <div>SNR של ADC אידיאלי<span class="eq">SNR = 6.02·N + 1.76 dB</span></div>
+        <div>ENOB<span class="eq">ENOB = (SINAD − 1.76) / 6.02</span></div>
+        <div>תדר מתקפל (aliasing)<span class="eq">f_alias = |f_in − k·fs|</span></div>
+        <div>רוחב פס מזמן עלייה<span class="eq">BW ≈ 0.35 / tr</span></div>
+        <div>Pull-up מינימלי ב-I2C<span class="eq">Rmin = (VDD − VOL) / IOL</span></div>
+        <div>Pull-up מקסימלי ב-I2C<span class="eq">Rmax = tr / (0.8473 · Cb)</span></div>
+        <div>הספק על LDO<span class="eq">P = (Vin − Vout) · I</span></div>
+        <div>מגבר לא-מהפך<span class="eq">G = 1 + Rf / Rg</span></div>
+        <div>מגבר מהפך<span class="eq">G = − Rf / Rin</span></div>
+        <div>מחלק מתח<span class="eq">Vout = Vin · R2 / (R1 + R2)</span></div>
+        <div>דציבלים<span class="eq">dB = 20·log(V2/V1) = 10·log(P2/P1)</span></div>
+      </div>
+      <h3>סקופ: הרגלים של מי שעובד במעבדה</h3>
+      <ul>
+        <li>פרוב 10x מפוצה (compensation) לפני כל מדידה חשובה.</li>
+        <li>אות מהיר או ripple: קפיץ אדמה קצר, לא תפס ארוך.</li>
+        <li>Ripple: הגבלת רוחב פס 20MHz, צימוד AC, מדידה ליד העומס.</li>
+        <li>אותות צפים (למשל צד עליון של נגד shunt): פרוב דיפרנציאלי. לא מחברים אדמה של פרוב לנקודה שאינה אדמה.</li>
+        <li>טריגר מתאים: קצה, רוחב פולס, או טריגר על פרוטוקול (I2C/SPI/UART).</li>
+        <li>לוג׳יק אנלייזר להקלטות ארוכות ולפענוח, סקופ לאיכות האות.</li>
+      </ul>
+    </section>
+
+    <section id="g-terms" class="panel">
+      <h2>מילון מונחים</h2>
+      <dl class="terms">
+        <dt>POD</dt><dd>Proof Of Design. הוכחה שהתכנון עומד בדרישות לפני ייצור: אפיון מלא, בדיקות קצה, שולי תכנון.</dd>
+        <dt>NPI</dt><dd>New Product Introduction. העברת מוצר מתכנון לייצור סדרתי.</dd>
+        <dt>ATP</dt><dd>Acceptance Test Procedure. בדיקות קבלה לכל יחידה מיוצרת.</dd>
+        <dt>ATE</dt><dd>Automatic Test Equipment. עמדת בדיקה אוטומטית: מכשירים, מתקן ותוכנה.</dd>
+        <dt>ICT / Flying probe</dt><dd>בדיקות ייצור של רכיבים וחיבורים: מיטת מסמרים או מחטים נעות.</dd>
+        <dt>BIT / BIST</dt><dd>Built-In Test. בדיקה עצמית שהמערכת מריצה (בהדלקה, ברקע או לפי פקודה).</dd>
+        <dt>DFT</dt><dd>Design For Testability. נקודות בדיקה, JTAG, BIT: מה שהופך כרטיס לבדיק.</dd>
+        <dt>STP / STD / STR</dt><dd>תוכנית בדיקות, תיאור או נוהל בדיקות, דוח תוצאות.</dd>
+        <dt>VCRM</dt><dd>Verification Cross Reference Matrix. טבלה שמקשרת כל דרישה לשיטת האימות ולבדיקה.</dd>
+        <dt>IADT</dt><dd>שיטות אימות: Inspection, Analysis, Demonstration, Test.</dd>
+        <dt>ICD</dt><dd>Interface Control Document. הגדרת הממשקים בין יחידות.</dd>
+        <dt>FAI</dt><dd>First Article Inspection. בדיקה מקיפה של היחידה הראשונה מייצור.</dd>
+        <dt>דרג ד׳</dt><dd>תחזוקה ותחקור ברמת היצרן או המעבדה, ברמת כרטיס ורכיב, מעבר לדרגים בשטח.</dd>
+        <dt>FRACAS</dt><dd>Failure Reporting, Analysis and Corrective Action System. מערכת לניהול דיווחי תקלות, ניתוח ופעולות מתקנות.</dd>
+        <dt>8D</dt><dd>מתודולוגיה של 8 שלבים לפתרון בעיות ופעולה מתקנת.</dd>
+        <dt>NFF</dt><dd>No Fault Found. יחידה שחזרה ולא נמצאה בה תקלה. לא סוגרים בלי להבין.</dd>
+        <dt>ESS</dt><dd>Environmental Stress Screening. סינון יחידות במחזורי טמפרטורה ורעידות כדי לחשוף כשלי ילדות.</dd>
+        <dt>HALT / HASS</dt><dd>בדיקות מאמץ מואצות לגילוי גבולות התכנון (HALT) וסינון בייצור (HASS).</dd>
+        <dt>DO-254</dt><dd>תקן לאבטחת תכנון חומרה אווירית, ברמות DAL A–E. דורש אימות בלתי תלוי בתכנון.</dd>
+        <dt>DO-160</dt><dd>תנאי סביבה ובדיקות לציוד אוויוני.</dd>
+        <dt>MIL-STD-810</dt><dd>בדיקות סביבה: טמפרטורה, לחות, רעידות, הלם, גובה ועוד.</dd>
+        <dt>MIL-STD-461</dt><dd>EMI/EMC: פליטה ורגישות, מוליכה ומוקרנת (CE, RE, CS, RS).</dd>
+        <dt>MIL-STD-704</dt><dd>מאפייני הזנה חשמלית במטוסים (MIL-STD-1275 לרכבים).</dd>
+        <dt>Golden unit</dt><dd>יחידת ייחוס מאומתת שמשמשת להשוואה ולכיול עמדות.</dd>
+        <dt>Yield</dt><dd>תשואה: אחוז היחידות שעוברות בדיקה בפעם הראשונה.</dd>
+        <dt>ECO / ECN</dt><dd>הוראת שינוי הנדסי. שינוי בתכנון שמחייב לעדכן גם את הבדיקות.</dd>
+      </dl>
+    </section>
+
+    <section id="g-python" class="panel">
+      <h2>Python לבדיקות</h2>
+      <ul>
+        <li><b>pyvisa</b>: שליטה במכשירים (סקופ, ספק, מודד) ב-LAN, USB או GPIB באמצעות פקודות SCPI.</li>
+        <li><b>pyserial</b>: תקשורת UART וקונסולה מול היחידה הנבדקת.</li>
+        <li><b>numpy / scipy</b>: FFT, סטטיסטיקה, חישובי SNR ו-ENOB.</li>
+        <li><b>pandas / matplotlib</b>: ניתוח תוצאות, גרפים לדוחות.</li>
+        <li><b>pytest</b>: מבנה בדיקות, fixtures ל-setup ו-teardown, דוחות.</li>
+        <li><b>logging</b>, קבצי קונפיגורציה ב-YAML או JSON, ו-git לניהול גרסאות.</li>
+      </ul>
+      <h3>פקודות SCPI נפוצות</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>פקודה</th><th>מה היא עושה</th></tr></thead>
+        <tbody>
+          <tr><td><code>*IDN?</code></td><td>זיהוי המכשיר</td></tr>
+          <tr><td><code>*RST</code></td><td>איפוס להגדרות ברירת מחדל</td></tr>
+          <tr><td><code>*OPC?</code></td><td>מחכה עד שהפעולה הקודמת הסתיימה</td></tr>
+          <tr><td><code>SYST:ERR?</code></td><td>קריאת תור השגיאות של המכשיר</td></tr>
+          <tr><td><code>MEAS:VOLT:DC?</code></td><td>מדידת מתח DC (מודד)</td></tr>
+          <tr><td><code>VOLT 3.3</code> / <code>CURR 0.5</code></td><td>קביעת מתח והגבלת זרם (ספק)</td></tr>
+          <tr><td><code>OUTP ON</code></td><td>הפעלת יציאת הספק</td></tr>
+        </tbody>
+      </table></div>
+      <h3>דוגמה: הדלקה בטוחה של כרטיס</h3>
+      <pre class="code">import pyvisa, time
+
+rm = pyvisa.ResourceManager()
+psu = rm.open_resource("TCPIP0::192.168.1.10::INSTR")
+psu.timeout = 5000
+try:
+    psu.write("*RST")
+    psu.write("VOLT 12.0")
+    psu.write("CURR 0.5")          # current limit before turning on
+    psu.write("OUTP ON")
+    time.sleep(0.5)
+    i = float(psu.query("MEAS:CURR?"))
+    if i > 0.45:
+        raise RuntimeError(f"Overcurrent at power-up: {i:.3f} A")
+finally:
+    pass  # in a real station: OUTP OFF on any failure</pre>
+    </section>
+
+    <section id="g-star" class="panel">
+      <h2>סיפורי STAR</h2>
+      <p>בשאלות התנהגותיות עונים במבנה: <b>Situation</b> (הקשר קצר), <b>Task</b> (מה היה באחריותך), <b>Action</b> (מה עשית בפועל, בגוף ראשון), <b>Result</b> (תוצאה במספרים, ומה למדת). דקה וחצי עד שתיים לכל סיפור.</p>
+      <h3>הכינו מראש 6 סיפורים</h3>
+      <ol>
+        <li>התקלה הכי קשה שתחקרת (עדיף בחומרה, עם סקופ או לוג׳יק אנלייזר).</li>
+        <li>בעיה שמצאת ואחרים פספסו.</li>
+        <li>מחלוקת מקצועית עם מפתח או עמית, ואיך נפתרה.</li>
+        <li>לחץ זמנים: מה תעדפת ולמה.</li>
+        <li>טעות שעשית ומה שינית בעקבותיה.</li>
+        <li>משהו שאוטומטת או שיפרת בתהליך (כמה זמן חסכת).</li>
+      </ol>
+      <p class="note">אפשר לבנות כל סיפור כך שיענה על כמה שאלות. סיפור דיבוג טוב משמש גם ל״תקלה קשה״, גם ל״עבודה עם צוותים״ וגם ל״למידה מהירה״.</p>
+    </section>
+
+    <section id="g-ask" class="panel">
+      <h2>שאלות לשאול את המראיינים</h2>
+      <ul>
+        <li>על איזה מוצר או פרויקט הצוות עובד עכשיו, ובאיזה שלב הוא (פיתוח, POD, ייצור)?</li>
+        <li>איך מתחלק הזמן בתפקיד בין מעבדה, אוטומציה, כתיבת מסמכים ותחקור תקלות?</li>
+        <li>איזו תשתית אוטומציה קיימת היום, ומה הייתם רוצים לשפר?</li>
+        <li>איך נראית העבודה מול צוותי FPGA, תוכנה ותכנון כרטיסים?</li>
+        <li>מה האתגר הטכני הגדול ביותר שהצוות התמודד איתו לאחרונה?</li>
+        <li>איך נראים החודשים הראשונים של מהנדס/ת חדש/ה? יש חפיפה או חונכות?</li>
+        <li>אילו בדיקות סביבה מבצעים, ואיפה (במעבדה פנימית או חיצונית)?</li>
+        <li>מה מבדיל מהנדס/ת אימות מצוין/ת אצלכם?</li>
+        <li>מה השלבים הבאים בתהליך?</li>
+      </ul>
+    </section>
+
+    <section id="g-day" class="panel">
+      <h2>יום הראיון</h2>
+      <ul>
+        <li>תעודה מזהה (נדרשת לכניסה לאתרים מאובטחים), עותק מודפס של קורות החיים, גיליון ציונים ותעודת תואר.</li>
+        <li>מחברת ועט. בראיון טכני כמעט תמיד מבקשים לצייר: מסגרת I2C, מעגל, דיאגרמת מצבים.</li>
+        <li>תיק פרויקטים קטן: תמונות של כרטיסים ומדידות מפרויקטים, רק מה שמותר לשתף. אין להביא מידע מסווג או חסוי ממקום עבודה קודם.</li>
+        <li>להגיע 15 דקות לפני. בכניסה יש בידוק, ולפעמים לא מכניסים טלפונים.</li>
+        <li>לפני הראיון לעבור שוב על המודעה ועל שליף הנוסחאות.</li>
+        <li>בראיון: לחשוב בקול, לשאול שאלות הבהרה, ולהגיד בכנות ״לא יודע/ת, הייתי בודק/ת כך״ כשצריך.</li>
+        <li>אחרי: מייל תודה קצר, ולרשום לעצמך אילו שאלות נשאלו.</li>
+      </ul>
+    </section>
+
+    <section id="g-clear" class="panel">
+      <h2>סיווג ביטחוני</h2>
+      <ul>
+        <li>משרות בחברות ביטחוניות דורשות בדרך כלל סיווג. התהליך כולל שאלונים ותחקיר, ויכול לקחת שבועות עד חודשים.</li>
+        <li>הדבר החשוב ביותר הוא כנות ועקביות. אי-דיוק או הסתרה פוגעים יותר מכל פרט עצמו.</li>
+        <li>הכינו מראש פרטים: כתובות מגורים, מקומות עבודה, נסיעות לחו״ל, קרובי משפחה בחו״ל.</li>
+        <li>אם יש משהו שעלול להיות מורכב, עדיף לומר זאת מוקדם לגורם המגייס.</li>
+      </ul>
+    </section>
+
+    <section id="g-src" class="panel">
+      <h2>מקורות</h2>
+      <p class="muted small">השאלות מבוססות על דרישות המשרה, דיווחי מועמדים פומביים וידע מקצועי כללי. דיווחי מועמדים הם אנקדוטליים, וחלקם לתפקידים קרובים ולא לתפקיד הזה בדיוק.</p>
+      <ul>
+        <li><a href="https://www.glassdoor.com/Interview/Elbit-Systems-Interview-Questions-E7325.htm" target="_blank" rel="noopener">Glassdoor: ראיונות באלביט מערכות</a> (שאלות I2C, UART, TCP/IP, MIL-STD-1553 בראיון חומרה; STP כמשימת בית)</li>
+        <li><a href="https://www.theworker.co.il/company/interviews/%D7%90%D7%9C%D7%91%D7%99%D7%98%20%D7%9E%D7%A2%D7%A8%D7%9B%D7%95%D7%AA/Elbit" target="_blank" rel="noopener">TheWorker: ראיונות באלביט</a> (Full Adder, מכונת מצבים, שלבי ראיון)</li>
+        <li><a href="https://www.machon-noam.co.il/%D7%90%D7%9C%D7%91%D7%99%D7%98-%D7%94%D7%9B%D7%A0%D7%94" target="_blank" rel="noopener">מכון נועם: שלבי המיון באלביט</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/DO-254" target="_blank" rel="noopener">DO-254 בוויקיפדיה</a></li>
+        <li><a href="https://www.teamblind.com/post/apple-hardware-validation-engineer-interview-0ksok1m6" target="_blank" rel="noopener">Blind: שאלות ראיון Hardware Validation</a> (דיבוג I2C ו-SPI, בחירת סקופ ופרובים)</li>
+      </ul>
+    </section>
+  </div>
+</main>
+<footer class="wrap">כלי הכנה אישי לראיון. אין לו קשר רשמי לאלביט מערכות. ההתקדמות נשמרת רק בדפדפן הזה.</footer>
+</div>
+
+<script>
+const TOPICS = {
+  intro:{n:`היכרות ומוטיבציה`, c:`ch4`},
+  comm:{n:`ממשקי תקשורת`, c:`ch1`},
+  conv:{n:`ADC / DAC`, c:`ch2`},
+  analog:{n:`אנלוגי והזנה`, c:`ch3`},
+  digital:{n:`ספרתי ו-FPGA`, c:`ch4`},
+  bringup:{n:`Bring-up ותחקור תקלות`, c:`ch1`},
+  lab:{n:`ציוד מעבדה`, c:`ch2`},
+  process:{n:`תהליך אימות ומסמכים`, c:`ch3`},
+  auto:{n:`Python ואוטומציה`, c:`ch4`},
+  std:{n:`תקנים וסביבה`, c:`ch3`},
+  behav:{n:`התנהגותי`, c:`ch2`},
+  logic:{n:`חשיבה כמותית ומילולית`, c:`ch1`}
+};
+
+const STAGES = [
+ {id:`phone`, name:`שיחת סינון טלפונית`, who:`מגייס/ת או רכז/ת גיוס`, dur:`15–20 דקות`,
+  assess:[`התאמה בסיסית לדרישות המשרה`,`מוטיבציה והבנה של התפקיד`,`זמינות, מיקום וציפיות שכר`,`התאמה ראשונית לסיווג ביטחוני`],
+  tips:[`היו במקום שקט, עם קורות החיים ותיאור המשרה מול העיניים`,`פתיח של דקה וחצי: מי אתם, מה עשיתם שקשור לאימות חומרה, ולמה המשרה הזאת`,`בשאלת השכר תנו טווח שבדקתם מראש`]},
+ {id:`tech1`, name:`ראיון מקצועי א׳: יסודות`, who:`ראש צוות אימות ומהנדס/ת בכיר/ה`, dur:`45–60 דקות`,
+  assess:[`שליטה ביסודות: תקשורות, ADC/DAC, אנלוגי וספרתי`,`חשיבה מסודרת והסבר ברור`,`כנות כשלא יודעים`],
+  tips:[`בקשו דף או לוח ושרטטו: מסגרת I2C, מעגל, דיאגרמת מצבים`,`חשבו בקול. הדרך חשובה למראיין לא פחות מהתשובה`,`חברו כל נושא לדוגמה מהניסיון שלכם`]},
+ {id:`tech2`, name:`ראיון מקצועי ב׳: מעבדה ותחקור תקלות`, who:`ראש צוות ומהנדס/ת אימות ותיק/ה`, dur:`45–60 דקות`,
+  assess:[`גישה שיטתית לתקלות`,`ניסיון אמיתי עם ציוד מעבדה`,`הבנה של POD, NPI, ATE ומסמכי אימות`,`אוטומציה ב-Python`],
+  tips:[`תמיד להתחיל מבטיחות וממדידות בסיסיות: מתחים, זרמים, שעונים, reset`,`לשאול שאלות הבהרה לפני שקופצים לפתרון`,`לפרט איזה מכשיר תשתמשו בו ואיך תגדירו אותו`]},
+ {id:`task`, name:`תרגיל מעשי`, who:`מבחן בית או תרגיל על הלוח`, dur:`30–90 דקות`,
+  assess:[`יכולת לכתוב מסמך בדיקה מסודר`,`חישובים מהירים ומדויקים`,`קוד Python קריא ונכון`],
+  tips:[`מבנה ברור חשוב יותר מאורך`,`לכל בדיקה: קריטריון עבר/נכשל מספרי`,`בקוד: פשוט, קריא, עם טיפול בשגיאות`]},
+ {id:`manager`, name:`ראיון מנהל/ת מחלקה`, who:`מנהל/ת המחלקה`, dur:`30–45 דקות`,
+  assess:[`בגרות מקצועית ואחריות`,`עבודה בממשקים ובמחלוקות`,`התאמה לצוות ולמחלקה`],
+  tips:[`ענו בשיטת STAR: מצב, משימה, פעולה, תוצאה`,`תוצאות במספרים כשאפשר`,`דברו על מה ״אני״ עשיתי בתוך ה״אנחנו״`]},
+ {id:`hr`, name:`ראיון משאבי אנוש`, who:`נציג/ת משאבי אנוש של היחידה`, dur:`30–45 דקות`,
+  assess:[`התאמה אישית לסביבת העבודה`,`עקביות ואמינות`,`מוטיבציה ויציבות`],
+  tips:[`עקביות עם מה שאמרתם בראיונות הקודמים`,`לדבר בחיוב על מקומות עבודה קודמים`,`להכין 2–3 שאלות משלכם`]},
+ {id:`assess`, name:`מבדקים`, who:`מכון מיון חיצוני או מבדק במשרדי החברה`, dur:`2–4 שעות`,
+  assess:[`חשיבה כמותית, מילולית וצורנית`,`שאלון אישיות`,`לפעמים דינמיקה קבוצתית`],
+  tips:[`השאלות כאן הן דוגמה לסוגי שאלות, לא המבחן עצמו`,`בשאלון אישיות: לענות בכנות ובעקביות, בלי לנסות לנחש מה ״רוצים לשמוע״`,`לא להיתקע על שאלה אחת. ניהול זמן הוא חלק מהמבחן`,`התוצאות נשמרות כמה חודשים, ולרוב אי אפשר להיבחן שוב בתקופה הזו`]}
+];
+
+const Q = [
+/* ---------- PHONE ---------- */
+{id:`p1`,s:`phone`,t:`intro`,d:1,q:`ספר/י לי על עצמך בקצרה.`,h:`דקה וחצי. מבנה: היום ← ניסיון רלוונטי ← למה התפקיד הזה.`,
+ k:[`השכלה (הנדסת חשמל) והתמחות רלוונטית`,`ניסיון מעשי עם כרטיסים, מעבדה או בדיקות, עם דוגמה קונקרטית אחת`,`נגיעה בדרישות המשרה: תקשורות, ADC/DAC, Python`,`סיום שמתחבר למשרה: למה אימות חומרה ולמה אלביט`,`קצר וממוקד, בלי לקרוא את קורות החיים`],
+ look:`תקשורת ברורה ותמציתית, והאם הניסיון שלך ממופה לדרישות.`},
+{id:`p2`,s:`phone`,t:`intro`,d:1,q:`למה אלביט, ולמה דווקא אימות חומרה ולא פיתוח?`,
+ k:[`משהו ספציפי על החברה: מערכות מורכבות, תחום ביטחוני, השפעה אמיתית`,`הבנה שאימות הוא תפקיד מרכזי: אחריות על איכות התכנון לפני ייצור`,`חיבור אישי: אהבה למעבדה, לתחקור תקלות ולראייה של המערכת כולה`,`הזכרת המגוון בתפקיד: FPGA, תוכנה, תכנון כרטיסים, ATE`,`שאיפה לצמוח בתפקיד ולא ״קרש קפיצה״ לפיתוח`]},
+{id:`p3`,s:`phone`,t:`intro`,d:2,q:`מה את/ה יודע/ת על אלביט מערכות?`,
+ k:[`חברת אלקטרוניקה ביטחונית ישראלית גדולה, מטה בחיפה, פעילות בינלאומית ועשרות אלפי עובדים`,`תחומים: מל״טים, אוויוניקה ותצוגות קסדה, אלקטרו-אופטיקה, לוחמה אלקטרונית, תקשורת ו-C4I, מערכות יבשה`,`ידע על החטיבה הספציפית של המשרה`,`חיבור: מוצרים מורכבים דורשים אימות חומרה קפדני`],
+ a:`טיפ: עברו על אתר החברה, על הדוח השנתי ועל הודעות לעיתונות מהשנה האחרונה. אם המודעה לא מציינת יחידה, שאלו את המגייס/ת באיזו יחידה מדובר.`},
+{id:`p4`,s:`phone`,t:`lab`,d:1,q:`על איזה ציוד מעבדה עבדת, ובאיזו רמה?`,
+ k:[`פירוט: סקופ, לוג׳יק אנלייזר, ספקטרום אנלייזר, ספקים, מודד, עומס אלקטרוני`,`דוגמה למדידה ספציפית (למשל ripple, טיימינג של SPI)`,`כנות לגבי הרמה: מה עשית בעצמך ומה רק ראית`,`שליטה ממוחשבת בציוד (SCPI/Python) אם יש`]},
+{id:`p5`,s:`phone`,t:`auto`,d:1,q:`מה רמת ה-Python שלך? כתבת אוטומציה לבדיקות?`,
+ k:[`פרויקט קונקרטי: מה הסקריפט עשה ואיזו בעיה חסך`,`ספריות: pyvisa, pyserial, numpy/pandas, pytest`,`לוגים ודוחות אוטומטיים`,`אם הניסיון קטן: מה תלמד/י ואיך`]},
+{id:`p6`,s:`phone`,t:`intro`,d:1,q:`האם יש מגבלה כלשהי לתהליך סיווג ביטחוני?`,
+ k:[`תשובה כנה וישירה`,`לציין שירות צבאי או סיווג קודם אם היה`,`לא להסתיר. אי-עקביות בהמשך פוגעת יותר מכל פרט`],
+ a:`אם יש משהו מורכב (למשל אזרחות נוספת או שהייה ממושכת בחו״ל), עדיף להגיד זאת מראש בצורה עניינית. התהליך עצמו מתנהל מול גורמי הביטחון ויכול לקחת זמן.`},
+{id:`p7`,s:`phone`,t:`intro`,d:2,q:`מה ציפיות השכר שלך?`,
+ k:[`טווח שבדקת מראש לפי ניסיון ותפקיד (סקרי שכר, אנשים בתעשייה)`,`התייחסות לחבילה כולה: שכר, קרן השתלמות, הטבות, נסיעות`,`גמישות סבירה בלי להוריד את עצמך מראש`,`אפשר לשאול מה הטווח שהוגדר למשרה`]},
+{id:`p8`,s:`phone`,t:`intro`,d:1,q:`מתי תוכל/י להתחיל, ואיך מבחינת הגעה למשרדים?`,
+ k:[`תאריך ריאלי כולל הודעה מוקדמת`,`לבדוק מראש איפה בדיוק נמצא האתר`,`להראות שברור לך שעבודת מעבדה דורשת נוכחות פיזית`]},
+
+/* ---------- TECH 1 ---------- */
+{id:`t1`,s:`tech1`,t:`comm`,d:1,q:`השווה/השווי בין SPI, I2C ו-UART.`,h:`חשבו על: מספר קווים, יש שעון או אין, איך בוחרים רכיב, האם יש אישור קבלה.`,
+ k:[`UART: אסינכרוני, 2 קווים (TX/RX), נקודה-לנקודה, אין שעון ולכן מסכימים מראש על baud rate`,`SPI: סינכרוני, 4 קווים (SCLK, MOSI, MISO, CS), מאסטר אחד, CS לכל רכיב, full-duplex, מהיר (עשרות MHz)`,`I2C: סינכרוני, 2 קווים (SCL, SDA) open-drain עם pull-up, כתובות, multi-master, ACK לכל בייט, 100k/400k/1MHz`,`ב-SPI אין ACK: אין אישור שהצד השני קיבל`,`מתי בוחרים מה: I2C להרבה רכיבים איטיים (חיישנים, EEPROM), SPI למהירות (Flash, ADC), UART לקונסולה ולתקשורת בין מעבדים`],
+ f:[`איך היית מוודא/ת שהממשק עובד בכל המהירויות?`,`מה קורה ב-SPI אם שני רכיבים מוציאים MISO באותו זמן?`]},
+{id:`t2`,s:`tech1`,t:`comm`,d:2,q:`למה ב-I2C צריך נגדי pull-up, ואיך בוחרים את הערך?`,
+ k:[`היציאות open-drain: רכיב יכול רק למשוך ל-0, וה-1 נוצר ע״י ה-pull-up (wired-AND)`,`ערך גבוה מדי: זמן עלייה איטי (RC עם קיבול הקו) וחריגה מ-tr המותר`,`ערך נמוך מדי: זרם גדול מ-IOL (3mA בתקן) ולא מגיעים ל-VOL`,`Rmin = (VDD − VOL) / IOL`,`Rmax = tr / (0.8473 · Cb), כאשר tr = 1000ns ב-100kHz ו-300ns ב-400kHz`,`ערכים טיפוסיים: 4.7kΩ ל-100kHz, 2.2kΩ עד 1kΩ ל-400kHz`],
+ a:`דוגמה: 3.3V, 400kHz, קיבול קו 200pF. Rmin = (3.3 − 0.4) / 3mA ≈ 967Ω, Rmax = 300ns / (0.8473 · 200pF) ≈ 1.77kΩ. בוחרים 1.5kΩ.`,
+ f:[`מה רואים בסקופ כשה-pull-up גדול מדי?`,`מה קורה כשיש pull-up גם על הכרטיס וגם על המודול?`]},
+{id:`t3`,s:`tech1`,t:`comm`,d:2,q:`צייר/י והסבר/י טרנזקציה של קריאת רגיסטר מרכיב ב-I2C.`,
+ k:[`START: SDA יורד כש-SCL גבוה`,`כתובת 7 ביט + ביט W (0), הרכיב מחזיר ACK`,`כתיבת מספר הרגיסטר + ACK`,`Repeated START, כתובת + R (1), ACK`,`קריאת בייט(ים): המאסטר שולח ACK לכל בייט חוץ מהאחרון, שעליו NACK`,`STOP: SDA עולה כש-SCL גבוה`,`הנתונים משתנים רק כש-SCL נמוך`],
+ f:[`מה זה clock stretching?`,`SDA תקוע בנמוך אחרי reset של המעבד. איך משחררים? (9 פולסי שעון ואז STOP)`]},
+{id:`t4`,s:`tech1`,t:`comm`,d:1,type:`mcq`,q:`רכיב I2C מחזיר NACK מיד אחרי בייט הכתובת. מה הסיבה הסבירה ביותר?`,
+ o:[`ה-baud rate לא מתאים`,`כתובת שגויה, או שהרכיב לא מוזן או נמצא ב-reset`,`ה-CPOL הפוך`,`חסר ביט parity`],c:1,
+ a:`NACK אחרי כתובת אומר שאף רכיב לא זיהה את הכתובת. בודקים את הכתובת (בלבול נפוץ בין 7 ל-8 ביט, הזזה של ביט אחד), את פיני הכתובת, את ההזנה ואת קו ה-reset. baud ו-parity שייכים ל-UART, ו-CPOL ל-SPI.`},
+{id:`t5`,s:`tech1`,t:`comm`,d:2,q:`מה זה CPOL ו-CPHA ב-SPI? מה ההבדל בין Mode 0 ל-Mode 3?`,
+ k:[`CPOL: מצב השעון במנוחה (0 נמוך, 1 גבוה)`,`CPHA: באיזה קצה דוגמים (0 בקצה הראשון, 1 בקצה השני)`,`Mode 0 (0,0): מנוחה נמוכה, דגימה בעלייה. הנפוץ ביותר`,`Mode 3 (1,1): מנוחה גבוהה, דגימה גם היא בעלייה`,`אי-התאמה גורמת לביטים מוזזים או לזבל, ולפעמים זה ״כמעט עובד״`,`את ה-mode לוקחים מתרשים הטיימינג בדף הנתונים`]},
+{id:`t6`,s:`tech1`,t:`comm`,d:1,type:`mcq`,q:`UART בקצב 115200 בתצורת 8N1. כמה בייטים בשנייה עוברים לכל היותר?`,
+ o:[`14,400`,`11,520`,`12,800`,`115,200`],c:1,
+ a:`8N1 = ביט התחלה + 8 ביטי נתונים + ביט עצירה = 10 ביטים לבייט. 115200 / 10 = 11,520 בייטים בשנייה.`},
+{id:`t7`,s:`tech1`,t:`comm`,d:2,q:`מה ההבדל בין RS-232, RS-422 ו-RS-485?`,
+ k:[`RS-232: חד-קצוי, מתחים של ±3 עד ±15V, לוגיקה הפוכה, נקודה-לנקודה, מרחק קצר (כ-15 מטר)`,`RS-422: דיפרנציאלי, משדר אחד ועד 10 מקלטים, עד כ-1200 מטר`,`RS-485: דיפרנציאלי, multi-drop עם כמה משדרים על אותו קו (עד 32 יחידות עומס), לרוב half-duplex`,`דיפרנציאלי = עמידות לרעש ומרחקים ארוכים`,`צריך טרמינציה של כ-120Ω בשני קצוות הקו`]},
+{id:`t8`,s:`tech1`,t:`comm`,d:1,type:`mcq`,q:`באיזה תקן אפשר לחבר כמה משדרים על אותו זוג חוטים?`,
+ o:[`RS-232`,`RS-422`,`RS-485`,`UART ברמות TTL`],c:2,
+ a:`RS-485 תומך בכמה משדרים על אותו קו (רק אחד משדר בכל רגע). ב-RS-422 יש משדר אחד בלבד.`},
+{id:`t9`,s:`tech1`,t:`comm`,d:3,q:`הסבר/י את Ethernet ברמת החומרה: מה התפקיד של ה-MAC, ה-PHY וה-magnetics?`,
+ k:[`MAC: שכבת הקישור, מסגרות, כתובות, CRC. לרוב בתוך המעבד או ה-FPGA`,`PHY: השכבה הפיזית, קידוד, אות אנלוגי על הכבל, auto-negotiation`,`ממשק MAC↔PHY: MII, RMII, RGMII, SGMII. ניהול דרך MDIO/MDC`,`Magnetics (שנאים): בידוד גלווני ודחיית common mode בין הכרטיס לכבל`,`בדיקות: link ומהירות, רגיסטרים של ה-PHY דרך MDIO, loopback, תעבורה (iperf) וספירת שגיאות CRC`],
+ f:[`מה היית בודק/ת ב-RGMII מבחינת טיימינג?`,`אילו סוגי loopback יש, ומה כל אחד מבודד?`]},
+{id:`t10`,s:`tech1`,t:`comm`,d:2,q:`מה את/ה יודע/ת על MIL-STD-1553?`,
+ k:[`אפיק נתונים צבאי לאוויוניקה, 1Mbps`,`קידוד Manchester II (bi-phase)`,`Bus Controller, עד 31 Remote Terminals, ו-Bus Monitor`,`אפיק כפול (A/B) לשרידות`,`צימוד דרך שנאים, כבל זוג שזור מסוכך עם טרמינציה`,`מילה של 20 ביט: 3 סנכרון, 16 נתונים, ביט זוגיות`],
+ a:`שאלות על 1553 דווחו בראיון חומרה באלביט. גם בלי ניסיון ישיר, להכיר את העקרונות זה יתרון.`},
+{id:`t11`,s:`tech1`,t:`comm`,d:1,q:`למה משתמשים בתקשורת דיפרנציאלית (LVDS, RS-485, Ethernet)?`,
+ k:[`המקלט מודד הפרש בין שני קווים, ולכן רעש משותף (common mode) מתבטל`,`פליטה (EMI) נמוכה יותר, כי השדות של שני הקווים מבטלים זה את זה`,`אפשר להשתמש במתחים קטנים: מהירות גבוהה וצריכה נמוכה`,`מרחקים ארוכים יותר`,`צריך impedance מבוקר (טיפוסית 100Ω) וטרמינציה`]},
+{id:`t12`,s:`tech1`,t:`conv`,d:2,q:`אילו פרמטרים הכי חשובים כשבוחרים או בודקים ADC?`,
+ k:[`רזולוציה (ביטים) וקצב דגימה`,`שגיאות סטטיות: offset, gain, INL, DNL`,`ביצועים דינמיים: SNR, SINAD, ENOB, SFDR, THD`,`רוחב פס של הכניסה ו-aperture jitter`,`מתח הייחוס: דיוק ורעש`,`ממשק הנתונים (SPI, LVDS, JESD204) וצריכת הספק`]},
+{id:`t13`,s:`tech1`,t:`conv`,d:2,type:`mcq`,q:`ADC דוגם ב-100MS/s. בכניסה יש טון של 70MHz בלי מסנן anti-aliasing. איפה הוא יופיע בספקטרום?`,
+ o:[`70MHz`,`30MHz`,`50MHz`,`170MHz`],c:1,
+ a:`תדר נייקוויסט הוא 50MHz. 70MHz מתקפל: |100 − 70| = 30MHz. זה aliasing, ולכן שמים מסנן לפני ה-ADC.`},
+{id:`t14`,s:`tech1`,t:`conv`,d:1,type:`mcq`,q:`מהו ה-SNR התאורטי של ADC אידיאלי של 12 ביט?`,
+ o:[`כ-62 dB`,`כ-74 dB`,`כ-86 dB`,`כ-96 dB`],c:1,
+ a:`SNR = 6.02·N + 1.76 = 6.02·12 + 1.76 ≈ 74 dB. בכיוון ההפוך: ENOB = (SINAD − 1.76) / 6.02.`},
+{id:`t15`,s:`tech1`,t:`conv`,d:1,type:`mcq`,q:`ADC של 12 ביט עם ייחוס של 3.3V. מה גודל ה-LSB?`,
+ o:[`כ-0.8 mV`,`כ-3.3 mV`,`כ-1.6 mV`,`כ-0.08 mV`],c:0,
+ a:`LSB = Vref / 2^N = 3.3 / 4096 ≈ 0.806 mV.`},
+{id:`t16`,s:`tech1`,t:`conv`,d:2,q:`מה ההבדל בין INL ל-DNL? מה זה missing codes?`,
+ k:[`DNL: הסטייה של רוחב כל צעד מ-1 LSB אידיאלי`,`INL: סטייה מצטברת של פונקציית ההעברה מהקו הישר`,`DNL קטן מ-−1 LSB פירושו missing code: קוד שאף פעם לא מופיע`,`ב-DAC, DNL גדול מ-−1 LSB מבטיח מונוטוניות`,`מודדים בשיטת היסטוגרמה (רמפה או סינוס) או בסריקת DC איטית`]},
+{id:`t17`,s:`tech1`,t:`conv`,d:3,q:`איך היית בודק/ת ADC על כרטיס חדש?`,
+ k:[`קודם: הזנה, ייחוס ושעון תקינים (מדידה בסקופ ובמודד)`,`כניסה מקוצרת או מקורקעת: פיזור הקודים מראה את רעש הכרטיס`,`בדיקה סטטית: מקור DC מדויק בכמה נקודות כולל הקצוות, לחישוב offset, gain ולינאריות`,`בדיקה דינמית: סינוס נקי ממחולל + מסנן BPF, דגימה קוהרנטית, FFT לחישוב SNR, SFDR ו-ENOB`,`השוואה למפרט, ובדיקה בטמפרטורות ובמתחי קצה`,`אוטומציה ב-Python לאיסוף ולעיבוד`],
+ f:[`למה צריך מסנן אחרי המחולל?`,`מה זה דגימה קוהרנטית, ולמה משתמשים ב-window?`]},
+{id:`t18`,s:`tech1`,t:`conv`,d:2,q:`איך בודקים DAC?`,
+ k:[`לינאריות: מודד מדויק על סט קודים (או על כולם) לחישוב INL, DNL, offset ו-gain`,`זמן התייצבות (settling) וגליצ׳ים במעבר קוד (למשל מ-0x7FF ל-0x800) בסקופ`,`ביצועים דינמיים: ייצור סינוס ומדידה בספקטרום אנלייזר: SFDR, THD, הרמוניות`,`רעש ביציאה ותלות בעומס`,`ייחוס ומתחי הזנה`]},
+{id:`t19`,s:`tech1`,t:`analog`,d:1,type:`mcq`,q:`מגבר לא-מהפך עם Rf = 9kΩ ו-Rg = 1kΩ. מה ההגבר?`,
+ o:[`9`,`10`,`−9`,`0.9`],c:1,
+ a:`הגבר לא-מהפך = 1 + Rf/Rg = 1 + 9 = 10. במגבר מהפך ההגבר היה −Rf/Rin.`},
+{id:`t20`,s:`tech1`,t:`analog`,d:1,q:`למה שמים קבלי decoupling ליד כל רכיב, ובאילו ערכים?`,
+ k:[`הרכיב צורך זרם בפולסים מהירים, וההשראות של המסלולים מונעת מהספק להגיב מהר`,`הקבל הוא מאגר מקומי שמספק את הזרם הרגעי ומונע נפילות ורעש`,`שילוב ערכים: 100nF ליד כל פין הזנה, 1–10µF לקבוצה, ו-bulk`,`מיקום קרוב ככל האפשר לפין, עם via קצר ל-GND`,`בסכמה: לוודא שאין פין הזנה בלי decoupling`]},
+{id:`t21`,s:`tech1`,t:`analog`,d:2,q:`LDO מול ממיר ממותג (Buck): מתי כל אחד, ומה בודקים בכל אחד ב-bring-up?`,
+ k:[`LDO: פשוט ושקט, נצילות נמוכה כשהפרש המתחים גדול, צריך מרווח dropout`,`Buck: נצילות גבוהה, אבל יש ripple ורעש בתדר המיתוג`,`בדיקות: מתח יציאה בעומס, ripple ורעש, תגובה למעבר עומס, טמפרטורה`,`Soft-start, power-good וסדר עליית מתחים`,`ב-Buck: תדר מיתוג, צורת הגל ב-switch node, יציבות`]},
+{id:`t22`,s:`tech1`,t:`analog`,d:1,type:`mcq`,q:`LDO מוריד 5V ל-3.3V בזרם של 1A. כמה הספק מתבזבז עליו?`,
+ o:[`3.3W`,`1.7W`,`5W`,`0.33W`],c:1,
+ a:`P = (Vin − Vout) · I = (5 − 3.3) · 1 = 1.7W. זה הרבה חום, וכאן Buck עדיף.`},
+{id:`t23`,s:`tech1`,t:`analog`,d:1,q:`מה זה power sequencing ולמה זה חשוב?`,
+ k:[`סדר העלייה (והירידה) של המתחים בכרטיס`,`FPGA ומעבדים דורשים לרוב סדר: core, אחר כך aux, אחר כך I/O`,`הפרה עלולה לגרום ל-latch-up, לזרמים גבוהים, לנזק או לאתחול לא תקין`,`מימוש: power-good שמחובר ל-enable של הממיר הבא, או בקר sequencing`,`בבדיקה: סקופ עם כמה ערוצים על כל המתחים ועל ה-reset, טריגר על העלייה`]},
+{id:`t24`,s:`tech1`,t:`analog`,d:1,type:`mcq`,q:`מחלק מתח של 30kΩ (עליון) ו-10kΩ (תחתון) מקבל 10V. מה המתח בנקודת האמצע?`,
+ o:[`7.5V`,`2.5V`,`3.33V`,`5V`],c:1,
+ a:`Vout = 10 · 10k / (30k + 10k) = 2.5V.`},
+{id:`t25`,s:`tech1`,t:`digital`,d:2,q:`מה זה setup ו-hold time? מה קורה כשמפרים אותם?`,
+ k:[`Setup: הזמן שהנתון חייב להיות יציב לפני קצה השעון`,`Hold: הזמן שהנתון חייב להישאר יציב אחרי הקצה`,`הפרה גורמת למטא-יציבות: הפליפ-פלופ עלול להישאר במצב ביניים ולהתייצב לערך אקראי`,`בממשקים חיצוניים: מודדים את הטיימינג בסקופ ומשווים לדף הנתונים`,`פתרונות: התאמת טיימינג, הורדת תדר, הזזת פאזת השעון`]},
+{id:`t26`,s:`tech1`,t:`digital`,d:2,q:`איך מעבירים אות בין שני תחומי שעון (CDC)?`,
+ k:[`ביט בודד: מסנכרן של 2 (או 3) פליפ-פלופים`,`בוס רב-ביטי: FIFO אסינכרוני עם מצביעים בקוד Gray`,`או handshake (req/ack)`,`לא מעבירים כמה ביטים בנפרד דרך מסנכרנים, כי הם עלולים להגיע במחזורים שונים`,`באימות: בעיות CDC מופיעות לסירוגין ותלויות בטמפרטורה ובמתח`]},
+{id:`t27`,s:`tech1`,t:`digital`,d:2,type:`mcq`,q:`מה הפתרון הנכון להעברת ביט בקרה בודד בין שני תחומי שעון?`,
+ o:[`חיבור ישיר`,`שני פליפ-פלופים בטור בתחום השעון המקבל`,`Latch`,`שער AND עם השעון`],c:1,
+ a:`מסנכרן כפול נותן לפליפ-פלופ הראשון זמן להתייצב ממטא-יציבות לפני שהערך משמש בלוגיקה.`},
+{id:`t28`,s:`tech1`,t:`digital`,d:1,q:`מה ההבדל בין יציאה push-pull ליציאה open-drain?`,
+ k:[`Push-pull: מושכת אקטיבית גם ל-1 וגם ל-0, ומהירה`,`Open-drain: מושכת רק ל-0, וה-1 מגיע מ-pull-up חיצוני`,`Open-drain מאפשרת כמה יציאות על אותו קו (wired-AND): I2C, קווי interrupt ו-reset`,`Open-drain מאפשרת התאמת רמות (pull-up למתח אחר)`,`שתי יציאות push-pull מחוברות יחד = קצר כשהן מתנגשות`]},
+{id:`t29`,s:`tech1`,t:`digital`,d:3,q:`מה זה reflections, ומתי צריך טרמינציה?`,
+ k:[`כשהקו ארוך ביחס לזמן העלייה (בערך מעל שישית מאורך העלייה), הוא מתנהג כקו תמסורת`,`אי-התאמת impedance בקצה גורמת להחזרה: ringing, overshoot, קצוות כפולים`,`סוגים: series במשדר, parallel או Thevenin במקלט, 100Ω דיפרנציאלי`,`במדידה: ringing יכול לבוא גם מחיבור אדמה ארוך של הפרוב`,`קצוות כפולים על שעון גורמים לספירה כפולה`]},
+{id:`t30`,s:`tech1`,t:`digital`,d:2,q:`מה זה JTAG, ואיך הוא עוזר ב-bring-up?`,
+ k:[`ממשק IEEE 1149.1: TCK, TMS, TDI, TDO (ו-TRST)`,`שרשרת (chain) של רכיבים, ובכל אחד מכונת המצבים של ה-TAP`,`Boundary scan: שליטה בפינים וקריאתם לבדיקת חיבורים, קצרים ונתקים בלי תוכנה`,`צריבת FPGA ו-Flash, ודיבוג מעבדים`,`שלב ראשון אחרי מתחים ושעונים: לזהות את כל הרכיבים בשרשרת (IDCODE)`]},
+{id:`t31`,s:`tech1`,t:`digital`,d:2,q:`בנה/י Full Adder משערים לוגיים.`,
+ k:[`S = A ⊕ B ⊕ Cin`,`Cout = A·B + Cin·(A ⊕ B)`,`מימוש: 2 XOR, 2 AND, OR אחד`,`טבלת אמת של 8 שורות לאימות`,`שרשור לסוכם של N ביט (ripple carry), והחיסרון: עיכוב שמצטבר`],
+ a:`שאלה שדווחה בראיון FPGA באלביט. ציירו את המעגל והראו טבלת אמת.`},
+{id:`t32`,s:`tech1`,t:`digital`,d:3,q:`תכנן/י מכונת מצבים שמקבלת ביטים (MSB ראשון) ומוציאה 1 אם המספר שהתקבל עד כה מתחלק ב-3.`,h:`מה צריך לזכור מהעבר? רק את השארית.`,
+ k:[`מצב = שארית החלוקה ב-3: S0, S1, S2`,`כלל מעבר: שארית חדשה = (2·r + bit) mod 3`,`S0: ביט 0 נשאר ב-S0, ביט 1 עובר ל-S1`,`S1: ביט 0 עובר ל-S2, ביט 1 עובר ל-S0`,`S2: ביט 0 עובר ל-S1, ביט 1 נשאר ב-S2`,`מכונת Moore: היציאה 1 במצב S0`],
+ a:`גם זו שאלה שדווחה בראיון באלביט. הכי חשוב להסביר את כלל המעבר: קבלת ביט חדש מכפילה את המספר ב-2 ומוסיפה את הביט.`},
+
+/* ---------- TECH 2 ---------- */
+{id:`s1`,s:`tech2`,t:`bringup`,d:2,q:`תאר/י צעד-אחר-צעד Bring-up של כרטיס חדש שהגיע מהייצור.`,
+ k:[`בדיקה ויזואלית: רכיבים, כיווניות, גשרי הלחמה, רכיבים חסרים`,`מדידת התנגדות בין כל מתח ל-GND לפני הזנה, לחיפוש קצרים`,`הזנה מספק עם הגבלת זרם, עלייה הדרגתית ומעקב אחרי הצריכה`,`מדידת כל המתחים, ripple, סדר עלייה ו-power-good`,`שעונים (תדר, משרעת) ו-reset`,`JTAG: זיהוי השרשרת וצריבת FPGA או מעבד`,`ממשקים בסיסיים: קונסולת UART, זיכרונות, ואז שאר הממשקים`,`תיעוד של כל שלב ושל כל חריגה`],
+ look:`סדר, בטיחות (לא לשרוף כרטיס יקר) ותיעוד.`,
+ f:[`אחד המתחים נמוך ב-10%. מה עושים?`,`הכרטיס מתחמם בנקודה מסוימת. איך מוצאים את הרכיב?`]},
+{id:`s2`,s:`tech2`,t:`bringup`,d:2,ctx:`הכרטיס צורך 2A מיד כשמדליקים, במקום 300mA הצפויים.`,q:`מה עושים?`,
+ k:[`לכבות מיד, או להשאיר בהגבלת זרם נמוכה`,`מדידת התנגדות של כל מתח ל-GND כדי לזהות איזה קו מקוצר`,`הזנה של המתח החשוד בנפרד עם הגבלת זרם, ואיתור נקודה חמה: מצלמה תרמית, ספריי קירור, מגע זהיר`,`חשודים נפוצים: קבל טנטלום הפוך, גשר הלחמה, רכיב שגוי או מסובב, BGA`,`בדיקה מול הסכמה וה-BOM`,`תיעוד ותחקיר כדי שהייצור יתקן`]},
+{id:`s3`,s:`tech2`,t:`bringup`,d:2,ctx:`חיישן על I2C לא עונה. המעבד מקבל NACK.`,q:`איך מתחקרים?`,
+ k:[`סקופ על SDA ו-SCL: רמות, pull-ups, זמני עלייה`,`לוג׳יק אנלייזר עם פענוח I2C: איזו כתובת נשלחת בפועל`,`בדיקת הכתובת (7 מול 8 ביט) ופיני הכתובת`,`הזנה, reset ו-enable של הרכיב`,`SDA תקוע בנמוך? לשלוח 9 פולסי שעון ו-STOP`,`רציפות בין המעבד לרכיב, ובדיקת הלחמה`]},
+{id:`s4`,s:`tech2`,t:`bringup`,d:2,ctx:`קריאה מ-Flash ב-SPI מחזירה ערכים ״כמעט נכונים״ (ביטים מוזזים).`,q:`מה החשודים, ואיך בודקים?`,
+ k:[`SPI mode לא נכון (CPOL/CPHA)`,`שעון מהיר מדי ביחס לרכיב או לאורך המסלול: להוריד תדר ולבדוק`,`טיימינג של MISO: דגימה מוקדמת מדי`,`סדר ביטים (MSB/LSB) וגודל מילה`,`CS: זמני setup ו-hold, והאם הוא עולה בין בייטים`,`מדידה בסקופ עם כמה ערוצים ופענוח, ובדיקת איכות האות (ringing)`]},
+{id:`s5`,s:`tech2`,t:`bringup`,d:1,ctx:`בקונסולת UART מופיעים תווים משובשים.`,q:`מה בודקים?`,
+ k:[`Baud rate לא תואם, או סטייה בשעון (צריך פחות מ-2–3% בסך הכול)`,`תצורת המסגרת: מספר ביטים, parity, stop`,`רמות מתח: TTL מול RS-232 (לוגיקה הפוכה!), 3.3V מול 5V`,`TX ו-RX מוצלבים, אדמה משותפת`,`מדידת רוחב ביט בסקופ כדי לחשב את ה-baud בפועל`]},
+{id:`s6`,s:`tech2`,t:`bringup`,d:3,ctx:`לינק Ethernet לא עולה בכרטיס חדש.`,q:`איך מתחקרים?`,
+ k:[`נוריות link ומצב ה-PHY: הזנה, שעון (25MHz), reset, strap pins`,`קריאת רגיסטרים של ה-PHY דרך MDIO: מזהה, מצב link, auto-negotiation`,`magnetics ומחבר: חיבור נכון, זוגות מוצלבים`,`Loopback פנימי ב-PHY כדי להבדיל בין צד ה-MAC לצד הכבל`,`טיימינג של RGMII (delays פנימיים מול השהיה במסלולים)`,`להחליף את הצד השני (מחשב או סוויץ׳) ואת הכבל`]},
+{id:`s7`,s:`tech2`,t:`bringup`,d:3,q:`מה זה ״חקר תקלות דרג ד׳״? איך תתחקר/י יחידה שחזרה מהשטח עם תקלה של ״נכבית לסירוגין״?`,
+ k:[`דרג ד׳: תחזוקה ברמת היצרן או המעבדה, תחקור ותיקון ברמת כרטיס ורכיב (מעבר לדרגים בשטח)`,`איסוף מידע: היסטוריית היחידה, תנאי הפעלה, לוגים, דיווח המשתמש`,`שחזור: בדיקה פונקציונלית, ואם צריך גם בתנאי סביבה (חום, קור, רעידות)`,`ניתוח: בדיקה ויזואלית, מיקרוסקופ, רנטגן ל-BGA, מדידות, החלפת כרטיסים לבידוד`,`להגיע לשורש הבעיה (root cause), לא רק לתקן`,`פעולה מתקנת ותיעוד: FRACAS או 8D, עדכון בתכנון או בייצור`,`NFF (לא נמצאה תקלה): לא סוגרים בלי הבנה`],
+ look:`המודעה מזכירה במפורש חקר תקלות דרג ד׳ ברמת כרטיס ומערכת, אז כדאי להכיר את המונח.`},
+{id:`s8`,s:`tech2`,t:`bringup`,d:3,ctx:`תקלה מופיעה רק כשהיחידה חמה (מעל 60°C).`,q:`איך ניגשים?`,
+ k:[`שחזור בתא אקלים עם ניטור רציף`,`חשודים: שולי טיימינג (setup/hold), שעון שזז, רכיב שולי, הלחמה סדוקה, ספק שנכנס להגבלה`,`חימום או קירור נקודתי (heat gun, ספריי קירור) כדי לבודד אזור`,`מדידת שולי טיימינג ומתח בטמפרטורה`,`השוואה בין כמה יחידות: בעיית תכנון או בעיית ייצור?`,`תיקון השורש, והוספת בדיקה כדי שזה לא יחזור`]},
+{id:`s9`,s:`tech2`,t:`lab`,d:2,q:`איך בוחרים סקופ ופרוב למדידה?`,
+ k:[`רוחב פס: תוכן האות ≈ 0.35/tr, והסקופ צריך פי 3–5 מזה למדידה מדויקת`,`קצב דגימה: לפחות פי 2.5–5 מרוחב הפס`,`פרוב פסיבי 10x לשימוש כללי, אקטיבי לאותות מהירים, דיפרנציאלי לאותות צפים, ופרוב זרם`,`חיבור אדמה ארוך = השראות = ringing מדומה. משתמשים בקפיץ אדמה קצר`,`פיצוי הפרוב (compensation), והעמסה קיבולית של הפרוב על המעגל`],
+ f:[`למה אסור לחבר את האדמה של פרוב רגיל לנקודה שאינה אדמה?`]},
+{id:`s10`,s:`tech2`,t:`lab`,d:1,type:`mcq`,q:`לאות יש זמן עלייה של 1ns. מה בערך רוחב הפס של האות?`,
+ o:[`35MHz`,`350MHz`,`3.5GHz`,`1GHz`],c:1,
+ a:`BW ≈ 0.35 / tr = 0.35 / 1ns = 350MHz. כדי למדוד את זמן העלייה בדיוק סביר, בוחרים סקופ עם רוחב פס גבוה פי כמה.`},
+{id:`s11`,s:`tech2`,t:`lab`,d:2,q:`איך מודדים ripple של ספק כוח נכון?`,
+ k:[`הגבלת רוחב פס של 20MHz בסקופ (או לפי ההגדרה בדרישה)`,`צימוד AC וסקאלה אנכית קטנה`,`קפיץ אדמה קצר במקום תפס ארוך, או פרוב ייעודי למדידת rails`,`מדידה ליד העומס, על הקבל`,`הבחנה בין ripple בתדר המיתוג לבין spikes של מיתוג`,`מדידה בכמה עומסים`]},
+{id:`s12`,s:`tech2`,t:`lab`,d:1,type:`mcq`,q:`מדדת ripple ויצאו spikes של 200mV. מה הדבר הראשון לבדוק?`,
+ o:[`להחליף את הממיר`,`את חיבור האדמה של הפרוב: תפס ארוך קולט רעש מיתוג`,`להגדיל את הקבלים`,`להעלות את קצב הדגימה`],c:1,
+ a:`לולאת האדמה הארוכה של הפרוב קולטת את השדה המגנטי של הממיר ומייצרת spikes שלא קיימים באמת. קודם מוודאים שהמדידה נכונה, ורק אחר כך מחפשים בעיה במעגל.`},
+{id:`s13`,s:`tech2`,t:`lab`,d:1,q:`מתי משתמשים בלוג׳יק אנלייזר ומתי בסקופ?`,
+ k:[`לוג׳יק אנלייזר: הרבה ערוצים דיגיטליים, הקלטות ארוכות, פענוח פרוטוקולים, רצף אירועים`,`סקופ: איכות האות האנלוגית: רמות, זמני עלייה, ringing, רעש, טיימינג מדויק`,`שילוב: MSO, סקופ עם ערוצים דיגיטליים`,`דוגמה: בעיה לוגית (פקודה שגויה) → LA. בעיה חשמלית (קצוות איטיים) → סקופ`]},
+{id:`s14`,s:`tech2`,t:`lab`,d:2,q:`למה משתמשים בספקטרום אנלייזר בעבודת אימות?`,
+ k:[`הרמוניות ו-spurs של שעונים ומקורות`,`ביצועי ADC ו-DAC: SFDR, THD`,`בדיקות EMI מקדימות (pre-compliance) עם פרובי שדה קרוב`,`phase noise של שעונים ומתנדים`,`הגדרות: RBW (רזולוציה מול זמן סריקה ורצפת רעש), span, reference level, attenuation`]},
+{id:`s15`,s:`tech2`,t:`lab`,d:2,q:`איך מודדים jitter של שעון?`,
+ k:[`סקופ עם פונקציית jitter: TIE, period jitter, cycle-to-cycle`,`Eye diagram לאותות נתונים`,`Phase noise בספקטרום אנלייזר או במכשיר ייעודי, ואינטגרציה ל-RMS jitter`,`רוחב הפס ורצפת הרעש של המכשיר מגבילים את המדידה`,`השוואה לדרישה של הרכיב המקבל (FPGA, ADC, SerDes)`]},
+{id:`s16`,s:`tech2`,t:`process`,d:2,q:`מה זה POD (Proof of Design)? במה הוא שונה מבדיקות ייצור (ATP)?`,
+ k:[`POD: הוכחה שהתכנון עומד בכל הדרישות והמפרט, לפני מעבר לייצור`,`כולל אפיון מלא, בדיקות בקצוות (מתח, טמפרטורה, תדר), שולי תכנון, ולעיתים בדיקות סביבה`,`מבוצע על יחידות ראשונות, פעם אחת לכל תכנון או שינוי`,`ATP: בדיקות קבלה לכל יחידה בייצור: קצרות, אוטומטיות, ובודקות שהיחידה יוצרה נכון`,`POD שואל ״האם התכנון נכון?״. ATP שואל ״האם היחידה הזאת תקינה?״`],
+ look:`POD הוא הסעיף הראשון בתחומי האחריות במודעה.`},
+{id:`s17`,s:`tech2`,t:`process`,d:2,q:`מה התפקיד של מהנדס/ת אימות ב-NPI (מעבר מפיתוח לייצור)?`,
+ k:[`העברת הבדיקות שנבנו בפיתוח לבדיקות ייצור (ATP) ולעמדות ATE`,`משוב על testability: נקודות בדיקה, JTAG, BIT`,`קביעת גבולות עבר/נכשל מתוך נתוני האפיון`,`תמיכה ב-First Article ובניתוח תשואה (yield) וכשלים בייצור`,`תיעוד: נהלי בדיקה והוראות עבודה`]},
+{id:`s18`,s:`tech2`,t:`process`,d:2,q:`מה זה ATE, ואילו סוגי בדיקות ייצור את/ה מכיר/ה?`,
+ k:[`ATE: עמדת בדיקה אוטומטית עם מכשירים ותוכנה שמריצה בדיקות בלי התערבות`,`ICT (In-Circuit Test): מיטת מסמרים, בדיקת רכיבים וחיבורים`,`Flying probe: בלי מתקן ייעודי, מתאים לכמויות קטנות`,`בדיקה פונקציונלית (FCT) ו-boundary scan`,`AOI ורנטגן לבדיקת הלחמות`,`DFT: מה התכנון צריך כדי שיהיה בדיק`]},
+{id:`s19`,s:`tech2`,t:`process`,d:2,q:`אילו מסמכי אימות כתבת או מכיר/ה? מה נכנס ב-STP?`,
+ k:[`STP (תוכנית בדיקות): היקף, אסטרטגיה, סביבת בדיקה, ציוד, לו״ז, אחריות, קריטריוני כניסה ויציאה`,`STD (תיאור או נוהל בדיקות): צעדים מפורטים, הגדרות, ערכים צפויים, עבר/נכשל`,`STR (דוח בדיקות): תוצאות, חריגות, מסקנות`,`VCRM או מטריצת עקיבות: כל דרישה ← שיטת אימות ← בדיקה`,`שיטות אימות: Inspection, Analysis, Demonstration, Test`,`דוח POD ודוחות חריגה`]},
+{id:`s20`,s:`tech2`,t:`process`,d:2,q:`איך קובעים קריטריון עבר/נכשל לבדיקה?`,
+ k:[`מקור: דרישה במפרט, דף נתונים של רכיב, או ניתוח worst-case`,`ערך נומינלי + טולרנס מספרי עם יחידות`,`לקחת בחשבון את אי-הוודאות של המדידה ואת כיול הציוד`,`שולי תכנון: לוודא שיש מרווח, לא רק שעוברים`,`בדיקה בקצוות: מתח, טמפרטורה, עומס`]},
+{id:`s21`,s:`tech2`,t:`process`,d:1,q:`מה זה בדיקות קצה (corners), ולמה צריך אותן?`,
+ k:[`בדיקה בשילובי קצוות: מתח הזנה (±5–10%), טמפרטורה (למשל −40°C עד +85°C, ובצבאי לרוב רחב יותר), תדר, עומס`,`בעיות טיימינג ושוליות מופיעות דווקא בקצוות`,`בודקים כמה יחידות כדי לקבל סטטיסטיקה`,`זה מראה שולי תכנון, ולא רק ש״עובד על השולחן״`]},
+{id:`s22`,s:`tech2`,t:`std`,d:2,q:`אילו תקנים צבאיים או אוויוניים את/ה מכיר/ה?`,
+ k:[`MIL-STD-810: בדיקות סביבה (טמפרטורה, רעידות, הלם, לחות, גובה)`,`MIL-STD-461: EMI/EMC, פליטה ורגישות, מוליכה ומוקרנת (CE, RE, CS, RS)`,`MIL-STD-704: איכות הזנה במטוסים. MIL-STD-1275: ברכבים`,`MIL-STD-1553: אפיק נתונים`,`DO-254 (חומרה אווירית, רמות DAL) ו-DO-160 (סביבה לאוויוניקה)`,`ESS ו-HALT/HASS: סינון כשלים מוקדם`],
+ a:`לפי DO-254, תכנון החומרה והאימות שלה צריכים להיעשות באופן בלתי תלוי. כדאי להזכיר את זה כשמדברים על חשיבות תפקיד האימות.`},
+{id:`s23`,s:`tech2`,t:`bringup`,d:1,q:`מה הדבר הראשון שאת/ה מסתכל/ת עליו בדף נתונים של רכיב חדש?`,
+ k:[`Absolute maximum ratings: מה שורף את הרכיב`,`Recommended operating conditions`,`מאפיינים חשמליים: רמות לוגיות, זרמים, טולרנסים`,`תרשימי טיימינג וטבלאות טיימינג`,`מעגל יישום מומלץ והנחיות layout`,`Errata ו-application notes`]},
+{id:`s24`,s:`tech2`,t:`bringup`,d:2,q:`קיבלת סכמה של כרטיס לפני תחילת הבדיקות. מה תבדוק/י בה?`,
+ k:[`עץ ההזנה: מתחים, ממירים, סדר עלייה, decoupling`,`שעונים ו-reset`,`pull-ups ו-pull-downs, strap pins, ופינים לא מחוברים`,`התאמת רמות בין רכיבים שעובדים במתחים שונים`,`נקודות בדיקה ונגישות למדידה`,`רשימת ערכים צפויים לכל נקודה, מוכנה לפני ההדלקה`]},
+{id:`s25`,s:`tech2`,t:`auto`,d:2,q:`תאר/י ארכיטקטורה של עמדת בדיקה אוטומטית ב-Python.`,
+ k:[`שכבת דרייברים למכשירים (PyVISA + SCPI, pyserial, sockets) עם ממשק אחיד`,`שכבת בדיקות: כל בדיקה היא פונקציה עם פרמטרים וגבולות`,`קובץ קונפיגורציה לגבולות ולהגדרות (YAML/JSON), לא בתוך הקוד`,`Sequencer או pytest להרצה, עם setup ו-teardown (כולל כיבוי בטוח)`,`לוגים, שמירת תוצאות (CSV או DB), דוח אוטומטי עם מספר סידורי וגרסאות`,`ניהול גרסאות (git) ותיעוד`],
+ f:[`איך מוודאים שבדיקה שנתקעה לא משאירה ספק דלוק?`,`איך מוודאים שהמכשירים מכוילים?`]},
+{id:`s26`,s:`tech2`,t:`auto`,d:2,q:`כתוב/כתבי קוד ששולט במודד דרך SCPI, קורא מתח ובודק אם הוא בתחום.`,
+ k:[`פתיחת חיבור עם pyvisa.ResourceManager`,`*IDN? לזיהוי ו-*RST לאיפוס`,`הגדרת המדידה ו-READ? או MEAS?`,`המרה ל-float ובדיקת גבולות`,`timeout, טיפול בשגיאות וסגירת החיבור`],
+ code:`import pyvisa
+
+LOW, HIGH = 3.25, 3.35   # limits for the 3.3V rail
+
+def measure_rail(address="TCPIP0::192.168.1.20::INSTR"):
+    rm = pyvisa.ResourceManager()
+    dmm = rm.open_resource(address)
+    dmm.timeout = 5000                   # ms
+    try:
+        print("Instrument:", dmm.query("*IDN?").strip())
+        dmm.write("*RST")
+        dmm.write("CONF:VOLT:DC 10")       # 10 V range
+        value = float(dmm.query("READ?"))
+        passed = LOW <= value <= HIGH
+        print(f"V = {value:.4f} V -> {'PASS' if passed else 'FAIL'}")
+        return value, passed
+    finally:
+        dmm.close()`},
+{id:`s27`,s:`tech2`,t:`auto`,d:2,q:`כתוב/כתבי פונקציות לקריאה ולכתיבה של שדה ביטים ברגיסטר.`,
+ k:[`קריאה: הזזה ימינה ומסכה, (reg >> lsb) & ((1 << width) − 1)`,`כתיבה: לנקות את השדה עם ~mask ואז OR עם הערך המוזז`,`read-modify-write כדי לא לדרוס ביטים אחרים`,`בדיקת קלט: הערך לא חורג מרוחב השדה`],
+ code:`def get_field(reg, lsb, width):
+    return (reg >> lsb) & ((1 << width) - 1)
+
+def set_field(reg, lsb, width, value):
+    if value >= (1 << width):
+        raise ValueError("value does not fit in field")
+    mask = ((1 << width) - 1) << lsb
+    return (reg & ~mask) | (value << lsb)
+
+# example: status bits [7:4] of 0xA5 -> 0xA
+assert get_field(0xA5, 4, 4) == 0xA
+assert set_field(0xA5, 4, 4, 0x3) == 0x35`},
+{id:`s28`,s:`tech2`,t:`auto`,d:1,q:`איך הופכים בדיקות אוטומטיות לאמינות?`,
+ k:[`Timeout לכל פעולה מול מכשיר`,`מצב התחלה ידוע: *RST ואתחול היחידה הנבדקת`,`בדיקה עצמית של העמדה: המכשירים מזוהים והכיול בתוקף`,`לא להסתיר כשלים עם retries. כל ניסיון נרשם`,`לוגים מפורטים עם חותמת זמן`,`גבולות מקובץ קונפיגורציה, וניהול גרסאות`]},
+
+/* ---------- TASK ---------- */
+{id:`k1`,s:`task`,t:`process`,d:3,ctx:`כרטיס עם FPGA, ADC של 16 ביט על SPI, Flash על SPI, UART ו-Ethernet 1G.`,q:`כתוב/כתבי ראשי פרקים ל-STP של בדיקות ה-POD של הכרטיס.`,
+ k:[`מטרה והיקף, ומסמכים ישימים (מפרט, ICD, סכמה)`,`סביבת הבדיקה: ציוד, גרסאות, מתקנים, תוכנה`,`מטריצת עקיבות: דרישה ← בדיקה ← שיטה`,`רשימת בדיקות: הזנה וצריכה, שעונים ו-reset, JTAG, כל ממשק (ADC, Flash, UART, Ethernet), ביצועי ADC, BIT`,`בדיקות קצה: מתח וטמפרטורה`,`קריטריוני עבר/נכשל מספריים`,`טיפול בחריגות ודיווח (STR)`],
+ a:`מבנה טוב חשוב יותר מכמות. הראו שכל דרישה מכוסה ושלכל בדיקה יש קריטריון מספרי. מועמד/ת לתפקיד QA באלביט דיווח/ה על משימת בית דומה: לכתוב STP למכשיר תקשורת.`},
+{id:`k2`,s:`task`,t:`process`,d:2,ctx:`דרישה: ״הכרטיס ימדוד מתח כניסה בתחום 0–10V בדיוק של ±0.5% מהסקאלה המלאה״.`,q:`כתוב/כתבי נוהל בדיקה לדרישה.`,
+ k:[`ציוד: מקור מתח מדויק ומודד ייחוס מכויל (מדויק לפחות פי 4 מהדרישה)`,`נקודות מדידה: 0, 10%, 25%, 50%, 75%, 90%, 100%, ומעט מעבר לקצוות`,`בכל נקודה: קובעים מתח, מודדים במודד, קוראים את ערך הכרטיס, מחשבים שגיאה`,`קריטריון: |שגיאה| ≤ 50mV (0.5% מ-10V)`,`חזרה בכמה טמפרטורות ובכמה מתחי הזנה`,`תיעוד בטבלה ובדוח (STR)`]},
+{id:`k3`,s:`task`,t:`conv`,d:2,type:`mcq`,q:`לפני ADC של 12 ביט (ייחוס 3.3V) יש מחלק של 30kΩ / 10kΩ. מתח הכניסה 10V. איזה קוד צפוי?`,
+ o:[`4095`,`3102`,`2048`,`1241`],c:1,
+ a:`המתח בכניסת ה-ADC הוא 2.5V. הקוד = 2.5 / 3.3 · 4095 ≈ 3102 (או ·4096 ≈ 3103, לפי המוסכמה של הרכיב).`},
+{id:`k4`,s:`task`,t:`comm`,d:2,type:`mcq`,q:`I2C ב-400kHz, מתח 3.3V, קיבול קו 200pF. איזה pull-up מתאים?`,
+ o:[`10kΩ`,`4.7kΩ`,`1.5kΩ`,`330Ω`],c:2,
+ a:`Rmax = 300ns / (0.8473 · 200pF) ≈ 1.77kΩ. Rmin = (3.3 − 0.4) / 3mA ≈ 967Ω. רק 1.5kΩ נמצא בטווח.`},
+{id:`k5`,s:`task`,t:`auto`,d:2,q:`כתוב/כתבי פונקציה שקוראת קובץ CSV של מדידות, בודקת כל דגימה מול גבולות, ומחזירה עבר/נכשל ורשימת כשלים.`,
+ k:[`קריאה עם csv או pandas`,`השוואה לגבולות בכל שורה`,`החזרת סטטוס כולל ופרטי הכשלים (זמן, ערך)`,`סיכום: מספר דגימות, מינימום, מקסימום, ממוצע`,`טיפול בקובץ חסר או בשורה פגומה`],
+ code:`import csv
+
+def check_samples(path, low, high):
+    fails, values = [], []
+    with open(path, newline="") as f:
+        for n, row in enumerate(csv.DictReader(f), start=2):
+            try:
+                v = float(row["voltage"])
+            except (KeyError, ValueError):
+                fails.append((n, row.get("time"), "bad row"))
+                continue
+            values.append(v)
+            if not (low <= v <= high):
+                fails.append((n, row["time"], v))
+    if values:
+        print(f"{len(values)} samples, min={min(values):.4f}, "
+              f"max={max(values):.4f}, mean={sum(values)/len(values):.4f}")
+    return len(fails) == 0 and len(values) > 0, fails`},
+{id:`k6`,s:`task`,t:`auto`,d:3,q:`כתוב/כתבי פונקציה ב-numpy שמחשבת SINAD ו-ENOB מדגימות ADC של טון סינוס.`,
+ k:[`הסרת DC`,`חלון (Blackman או Hann) כדי לצמצם דליפה, או דגימה קוהרנטית`,`FFT וחישוב הספק`,`הפרדה בין אנרגיית הטון (כמה bins סביבו) לבין כל השאר`,`SINAD = 10·log10(Psignal / Pnoise+distortion)`,`ENOB = (SINAD − 1.76) / 6.02`],
+ code:`import numpy as np
+
+def sinad_enob(samples, span=4):
+    x = np.asarray(samples, dtype=float)
+    x -= x.mean()                         # remove DC
+    w = np.blackman(len(x))
+    p = np.abs(np.fft.rfft(x * w)) ** 2   # power spectrum
+    p[:span] = 0                          # drop residual DC leakage
+    k = int(np.argmax(p))                 # tone bin
+    lo, hi = max(k - span, 0), k + span + 1
+    p_sig = p[lo:hi].sum()
+    p_rest = p.sum() - p_sig
+    sinad = 10 * np.log10(p_sig / p_rest)
+    return sinad, (sinad - 1.76) / 6.02`},
+
+/* ---------- MANAGER ---------- */
+{id:`m1`,s:`manager`,t:`behav`,d:2,q:`ספר/י על התקלה הכי קשה שתחקרת.`,
+ k:[`Situation: הקשר קצר: מוצר, שלב, השפעה`,`Task: מה היה באחריותך`,`Action: השלבים שלך, השערות שנפסלו, כלים ומדידות`,`Result: שורש הבעיה, התיקון, ומספרים (זמן, עלות, תשואה)`,`מה למדת ומה שינית בתהליך בעקבות זה`]},
+{id:`m2`,s:`manager`,t:`behav`,d:2,q:`מהנדס הפיתוח טוען שהבעיה שמצאת היא ״בעיית מדידה״ ולא באג בתכנון. מה תעשה/י?`,
+ k:[`לא להתבצר: לבדוק שוב את המדידה בעצמך`,`להביא נתונים: מדידות חוזרות, יחידות נוספות, השוואה לדף הנתונים`,`לשבת יחד במעבדה ולשחזר מול המפתח`,`להתמקד במוצר ולא באגו`,`אם עדיין אין הסכמה: הסלמה מסודרת עם נתונים, ותיעוד`]},
+{id:`m3`,s:`manager`,t:`behav`,d:3,q:`הפרויקט בלחץ, ומבקשים לשחרר כרטיס לייצור בלי להשלים חלק מהבדיקות. מה תעשה/י?`,
+ k:[`להבין מה חסר ומה הסיכון של כל בדיקה שלא בוצעה`,`להציג למנהלים סיכון מול לו״ז בשקיפות. ההחלטה שלהם, אבל מבוססת מידע`,`להציע חלופות: תעדוף בדיקות קריטיות, שחרור מותנה, בדיקות במקביל`,`לתעד את ההחלטה ואת החריגות`,`לא לחתום על משהו שלא נבדק כאילו נבדק`]},
+{id:`m4`,s:`manager`,t:`behav`,d:2,q:`איך את/ה עובד/ת מול צוותי FPGA, תוכנה ותכנון כרטיסים?`,
+ k:[`להבין את השפה של כל צוות ומה הוא צריך`,`דיווח תקלות מדויק: שחזור, נתונים, לוגים, גרסאות`,`מעורבות מוקדמת: סקרי תכנון ודרישות testability`,`תיאום ציפיות ולוחות זמנים`,`דוגמה קונקרטית לשיתוף פעולה`]},
+{id:`m5`,s:`manager`,t:`behav`,d:2,q:`ספר/י על טעות שעשית ומה למדת ממנה.`,
+ k:[`טעות אמיתית (לא ״אני פרפקציוניסט/ית״)`,`לקיחת אחריות בלי להאשים אחרים`,`מה עשית כדי לתקן`,`מה שינית כדי שזה לא יחזור: תהליך, צ׳קליסט, אוטומציה`]},
+{id:`m6`,s:`manager`,t:`behav`,d:2,q:`יש לך שבוע ו-40 בדיקות, וכל אחת לוקחת חצי יום. איך מתעדפים?`,
+ k:[`תעדוף לפי סיכון: מה חדש, מה מורכב, מה קריטי למשימה`,`אוטומציה ובדיקות במקביל`,`שיחה עם המנהל/ת: מה חובה לאבן הדרך הזאת`,`לתעד מה נדחה ולמה`,`לבדוק אם בדיקות אחרות כבר מכסות חלק מהדרישות`]},
+{id:`m7`,s:`manager`,t:`behav`,d:1,q:`איך את/ה לומד/ת טכנולוגיה או רכיב חדש מהר?`,
+ k:[`דף נתונים, application notes, כרטיס הערכה (EVB)`,`ניסוי קטן ומהיר במעבדה`,`שאלות למומחים בצוות`,`דוגמה ממשית: מה למדת, בכמה זמן, ומה עשית עם זה`]},
+{id:`m8`,s:`manager`,t:`behav`,d:1,q:`איפה את/ה רואה את עצמך בעוד 5 שנים?`,
+ k:[`העמקה באימות: מומחיות ואחריות על מערכות שלמות`,`הובלה: הובלת POD של פרויקט, חניכת מהנדסים`,`שאיפה ריאלית שמתאימה לארגון`,`לא ״במקום שלך״ ולא ״בחברה אחרת״`]},
+{id:`m9`,s:`manager`,t:`behav`,d:2,q:`ספר/י על מקרה שמצאת בעיה שאחרים פספסו.`,
+ k:[`מה גרם לך לחשוד`,`איך אימתת שזו בעיה אמיתית`,`איך הצגת אותה לצוות`,`מה היה המחיר אם לא הייתה נמצאת`]},
+{id:`m10`,s:`manager`,t:`behav`,d:1,q:`מה תעשה/י בחודשיים הראשונים בתפקיד?`,
+ k:[`ללמוד את המוצרים, הדרישות והתהליכים`,`להכיר את המעבדה, עמדות הבדיקה והקוד הקיים`,`ללמוד מהוותיקים ולקחת משימה ראשונה קטנה`,`לזהות מהר איפה אפשר לתרום (למשל אוטומציה)`]},
+
+/* ---------- HR ---------- */
+{id:`h1`,s:`hr`,t:`behav`,d:1,q:`מהן החוזקות שלך?`,
+ k:[`2–3 חוזקות שרלוונטיות לאימות: יסודיות, סקרנות טכנית, סדר ותיעוד, עבודת צוות`,`דוגמה קצרה לכל אחת`,`קשר ברור לתפקיד`]},
+{id:`h2`,s:`hr`,t:`behav`,d:2,q:`ומה החולשה שלך?`,
+ k:[`חולשה אמיתית, אבל לא קריטית לתפקיד`,`מה את/ה עושה כדי להשתפר`,`דוגמה להתקדמות`]},
+{id:`h3`,s:`hr`,t:`behav`,d:1,q:`למה את/ה עוזב/ת את מקום העבודה הנוכחי? (או: למה עכשיו?)`,
+ k:[`סיבה חיובית: צמיחה, אתגר, תחום`,`לא להשמיץ את המעסיק הנוכחי`,`קשר למה שהמשרה הזאת מציעה`]},
+{id:`h4`,s:`hr`,t:`behav`,d:1,q:`איך עמיתים לעבודה היו מתארים אותך?`,
+ k:[`תכונות שמתאימות למה שאמרת קודם`,`דוגמה או ציטוט ממשוב אמיתי`,`עקביות עם שאר הראיון`]},
+{id:`h5`,s:`hr`,t:`behav`,d:2,q:`ספר/י על קונפליקט עם עמית ואיך פתרת אותו.`,
+ k:[`מקרה אמיתי, בלי להשמיץ`,`הקשבה והבנה של הצד השני`,`פתרון ענייני ותוצאה`,`מה למדת`]},
+{id:`h6`,s:`hr`,t:`behav`,d:1,q:`את/ה מעדיף/ה לעבוד לבד או בצוות?`,
+ k:[`גם וגם: עבודה עצמאית במעבדה ושיתוף פעולה בין צוותים`,`דוגמה לכל אחד`,`להראות שהתפקיד דורש את שניהם`]},
+{id:`h7`,s:`hr`,t:`behav`,d:1,q:`יש לך שאלות אלינו?`,
+ k:[`תמיד כן. 2–3 שאלות`,`על הצוות והמוצרים: מה מאתגר בפרויקט הנוכחי`,`על התפקיד: איך נראה יום טיפוסי, היחס בין מעבדה לכתיבה`,`על התפתחות: הכשרות ומסלולי קידום`,`לא לשאול בשלב הזה רק על שכר ותנאים`],
+ a:`רשימת שאלות מוכנה נמצאת במדריך ההכנה, בפרק ״שאלות למראיינים״.`},
+{id:`h8`,s:`hr`,t:`behav`,d:2,q:`אם תקבל/י גם הצעה אחרת, מה יכריע?`,
+ k:[`כנות לגבי תהליכים אחרים, בלי לשחק משחקים`,`מה חשוב לך: עניין טכני, צוות, יציבות, התפתחות`,`להראות שהמשרה הזאת גבוהה ברשימה, אם זה נכון`]},
+
+/* ---------- ASSESSMENT ---------- */
+{id:`a1`,s:`assess`,t:`logic`,d:1,type:`mcq`,q:`השלם/י את הסדרה: 2, 6, 12, 20, 30, ?`,o:[`40`,`42`,`44`,`36`],c:1,a:`ההפרשים הם 4, 6, 8, 10, ולכן ההפרש הבא הוא 12: 30 + 12 = 42. (הנוסחה: n·(n+1))`},
+{id:`a2`,s:`assess`,t:`logic`,d:1,type:`mcq`,q:`השלם/י את הסדרה: 3, 7, 15, 31, ?`,o:[`47`,`62`,`63`,`64`],c:2,a:`כל איבר הוא פי 2 מהקודם ועוד 1: 31·2 + 1 = 63.`},
+{id:`a3`,s:`assess`,t:`logic`,d:2,type:`mcq`,q:`כל המהנדסים בצוות יודעים Python. דנה יודעת Python. מה נובע מכך בוודאות?`,o:[`דנה בצוות`,`דנה לא בצוות`,`אי אפשר לדעת אם דנה בצוות`,`כל מי שיודע Python נמצא בצוות`],c:2,a:`הכלל אומר שכל חברי הצוות יודעים Python, לא שכל מי שיודע Python נמצא בצוות.`},
+{id:`a4`,s:`assess`,t:`logic`,d:2,type:`mcq`,q:`3 עמדות בדיקה בודקות 120 כרטיסים ב-4 שעות. כמה זמן ייקח ל-5 עמדות לבדוק 200 כרטיסים?`,o:[`3 שעות`,`4 שעות`,`5 שעות`,`6.7 שעות`],c:1,a:`כל עמדה בודקת 10 כרטיסים בשעה. 5 עמדות בודקות 50 בשעה, ולכן 200 / 50 = 4 שעות.`},
+{id:`a5`,s:`assess`,t:`logic`,d:1,type:`mcq`,q:`מחיר רכיב עלה ב-20% ואחר כך ירד ב-20%. מה השינוי הכולל?`,o:[`0%`,`ירידה של 4%`,`עלייה של 4%`,`ירידה של 2%`],c:1,a:`1.2 · 0.8 = 0.96, כלומר ירידה של 4%.`},
+{id:`a6`,s:`assess`,t:`logic`,d:1,type:`mcq`,q:`וולט : מתח = אמפר : ?`,o:[`התנגדות`,`הספק`,`זרם`,`מטען`],c:2,a:`הקשר הוא בין יחידת מידה לבין הגודל שהיא מודדת.`},
+{id:`a7`,s:`assess`,t:`logic`,d:2,type:`mcq`,q:`מה הזווית בין המחוגים בשעה 3:30?`,o:[`90°`,`75°`,`60°`,`105°`],c:1,a:`מחוג הדקות ב-180°. מחוג השעות זז חצי דרך בין 3 ל-4: 90° + 15° = 105°. ההפרש: 75°.`},
+{id:`a8`,s:`assess`,t:`logic`,d:1,type:`mcq`,q:`A גדול מ-B, C קטן מ-B, ו-D גדול מ-A. מי הקטן ביותר?`,o:[`A`,`B`,`C`,`D`],c:2,a:`D > A > B > C.`}
+];
+
+/* ---------- state ---------- */
+const KEY = `hwv-interview-sim-v1`;
+let store = {};
+try { store = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { store = {}; }
+store.hist = store.hist || {};
+store.drafts = store.drafts || {};
+store.settings = Object.assign({per:6, timer:180, shuffle:true}, store.settings || {});
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+
+const QM = Object.fromEntries(Q.map(q => [q.id, q]));
+const SM = Object.fromEntries(STAGES.map(s => [s.id, s]));
+let tab = `sim`, session = null, confirmReset = false;
+const bankF = {stage:``, topic:``, text:``};
+
+const app = document.getElementById(`app`);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pct = x => Math.round(x * 100);
+const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, `0`)}`;
+function shuffle(a){ a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const stageQs = id => Q.filter(q => q.s === id).map(q => q.id);
+function pick(ids, n){ if (store.settings.shuffle) ids = shuffle(ids); return n ? ids.slice(0, n) : ids; }
+const topicStyle = t => `--tc:var(--${TOPICS[t].c});--tcs:var(--${TOPICS[t].c}-soft)`;
+const diffDots = d => `<span class="diff" title="רמת קושי ${d} מתוך 3">${[1,2,3].map(i => `<i class="${i <= d ? `on` : ``}"></i>`).join(``)}</span>`;
+function avg(a){ return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
+const weakIds = () => Q.filter(q => store.hist[q.id] && store.hist[q.id].last < 0.6).map(q => q.id);
+
+/* ---------- session flow ---------- */
+function startSession(plan, title){
+  plan = plan.filter(p => p.qids.length);
+  if (!plan.length) return;
+  session = {title, plan, si:0, qi:0, res:{}, phase: plan[0].stage === `custom` ? `q` : `intro`, start: Date.now()};
+  newCur(); tab = `sim`; render(); window.scrollTo(0, 0);
+}
+function newCur(){ session.cur = {rev:false, hint:false, checks:[], pick:null, dk:false, t:Date.now()}; }
+function cur(){ const st = session.plan[session.si]; const qid = st.qids[session.qi]; return {st, qid, q: QM[qid]}; }
+function stageInfo(id){ return SM[id] || {id, name:session.title, who:`מראיין/ת`}; }
+function setScore(){
+  const {qid, q} = cur(); const c = session.cur;
+  if (c.dk) return;
+  session.res[qid] = {st:`ans`, score: q.k && q.k.length ? c.checks.length / q.k.length : 0};
+}
+function finalize(){
+  const {qid} = cur(); const r = session.res[qid];
+  if (r && r.st !== `skip`){
+    const h = store.hist[qid] || {best:0, n:0};
+    store.hist[qid] = {last:r.score, best:Math.max(h.best, r.score), n:h.n + 1};
+    save();
+  }
+}
+function advance(){
+  session.qi++;
+  if (session.qi >= session.plan[session.si].qids.length){ session.phase = `end`; }
+  newCur(); render(); window.scrollTo(0, 0);
+}
+function nextStage(){
+  session.si++; session.qi = 0;
+  if (session.si >= session.plan.length){ session.phase = `summary`; }
+  else { session.phase = session.plan[session.si].stage === `custom` ? `q` : `intro`; }
+  newCur(); render(); window.scrollTo(0, 0);
+}
+function stageStats(st){
+  const ids = [...new Set(st.qids)];
+  const rs = ids.map(id => session.res[id]).filter(Boolean);
+  const ans = rs.filter(r => r.st !== `skip`);
+  return {total:ids.length, answered:ans.length, skipped:ids.filter(id => session.res[id] && session.res[id].st === `skip`),
+          dk:rs.filter(r => r.st === `dk`).length, score:avg(ans.map(r => r.score)), unseen:ids.filter(id => !session.res[id]).length};
+}
+
+/* ---------- views ---------- */
+function viewHome(){
+  const s = store.settings;
+  const seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button data-act="set" data-k="${k}" data-v="${v}" aria-pressed="${String(s[k]) === String(v)}">${l}</button>`).join(``)}</div>`;
+  const weak = weakIds();
+  const attempted = Object.keys(store.hist).length;
+  return `<div class="stack">
+  <section class="panel hero">
+    <h2>מתאמנים על הראיון לפני שהוא קורה</h2>
+    <p class="muted">הסימולציה עוברת על כל שלבי הגיוס לפי הסדר. בכל שאלה: עונים בקול או בכתב, ואז בודקים את עצמכם מול נקודות המפתח שהמראיין מחפש. אפשר לדלג על כל שאלה ולחזור אליה בסוף השלב.</p>
+    <div class="row">
+      <button class="btn primary" data-act="full">התחל סימולציה מלאה</button>
+      <button class="btn" data-act="quick">10 שאלות טכניות אקראיות</button>
+      ${weak.length ? `<button class="btn" data-act="weak">תרגל ${weak.length} שאלות חלשות</button>` : ``}
+    </div>
+    <p class="small muted">${attempted ? `תרגלת עד עכשיו ${attempted} מתוך ${Q.length} שאלות.` : `${Q.length} שאלות ב-7 שלבים. אף שאלה עוד לא תורגלה.`}</p>
+  </section>
+  <section class="panel stack">
+    <h3>הגדרות</h3>
+    <div class="settings">
+      <div><div class="label">שאלות בכל שלב</div>${seg(`per`, [[4,`4`],[6,`6`],[8,`8`],[0,`כולן`]])}</div>
+      <div><div class="label">זמן מומלץ לתשובה</div>${seg(`timer`, [[0,`ללא`],[90,`1.5 דק׳`],[180,`3 דק׳`],[300,`5 דק׳`]])}</div>
+      <div><div class="label">סדר השאלות</div>${seg(`shuffle`, [[true,`מעורבב`],[false,`קבוע`]])}</div>
+    </div>
+    <p class="small muted">הטיימר לא עוצר אתכם. הוא רק משנה צבע כשעוברים את הזמן, כמו מראיין שמתחיל להסתכל בשעון.</p>
+  </section>
+  <section class="panel">
+    <h3 style="margin-bottom:6px">שלבי הגיוס</h3>
+    <p class="small muted" style="margin-bottom:6px">הסדר מבוסס על דיווחי מועמדים ומשתנה בין יחידות. הסיווג הביטחוני רץ במקביל.</p>
+    <ol class="stages">${STAGES.map(st => {
+      const ids = stageQs(st.id); const done = ids.filter(id => store.hist[id]);
+      const m = avg(done.map(id => store.hist[id].last));
+      return `<li><div><div class="nm">${st.name}</div><div class="meta">${st.who} · ${st.dur} · ${ids.length} שאלות${done.length ? ` · תורגלו ${done.length}, ממוצע ${pct(m)}%` : ``}</div>${done.length ? `<div class="mini"><i style="width:${pct(done.length / ids.length)}%"></i></div>` : ``}</div><button class="btn small" data-act="stage" data-id="${st.id}">תרגל שלב</button></li>`;
+    }).join(``)}</ol>
+  </section>
+  </div>`;
+}
+
+function viewIntro(){
+  const st = SM[session.plan[session.si].stage];
+  const n = session.plan[session.si].qids.length;
+  return `<div class="panel intro stack">
+    <div class="label">שלב ${session.si + 1} מתוך ${session.plan.length}</div>
+    <h2>${st.name}</h2>
+    <div class="facts"><div><span class="label">מי מראיין</span>${st.who}</div><div><span class="label">משך טיפוסי</span>${st.dur}</div><div><span class="label">בסימולציה</span>${n} שאלות</div></div>
+    <div class="grid2">
+      <div><h4>מה בודקים בשלב הזה</h4><ul>${st.assess.map(x => `<li>${x}</li>`).join(``)}</ul></div>
+      <div><h4>טיפים</h4><ul>${st.tips.map(x => `<li>${x}</li>`).join(``)}</ul></div>
+    </div>
+    <div class="actions"><button class="btn primary" data-act="begin">התחל את השלב</button><button class="btn ghost" data-act="skipstage">דלג על השלב</button><span class="spacer"></span><button class="btn ghost" data-act="quit">יציאה</button></div>
+  </div>`;
+}
+
+function viewQuestion(){
+  const {st, qid, q} = cur(); const c = session.cur; const sinfo = stageInfo(st.stage);
+  const n = st.qids.length; const isMcq = q.type === `mcq`;
+  const timerTxt = fmt(Math.floor((Date.now() - c.t) / 1000));
+  let body = ``;
+  if (isMcq){
+    body += `<div class="opts">${q.o.map((o, i) => {
+      let cls = ``;
+      if (c.pick !== null){ if (i === q.c) cls = `right`; else if (i === c.pick) cls = `wrong`; }
+      return `<button class="opt ${cls}" data-act="pick" data-i="${i}" ${c.pick !== null || c.dk ? `disabled` : ``}><span class="k">${`אבגד`[i]}</span><span>${o}</span></button>`;
+    }).join(``)}</div>`;
+  } else {
+    body += `<label class="label" for="draft-${qid}">התשובה שלך (לא חובה. מומלץ לענות בקול כמו בראיון)</label>
+      <textarea id="draft-${qid}" data-draft="${qid}" placeholder="נקודות, שרטוט במילים, או התשובה המלאה…">${esc(store.drafts[qid] || ``)}</textarea>`;
+  }
+  if (c.hint && !c.rev) body += `<div class="hint"><b>רמז:</b> ${q.h || `התחילו מ: ${q.k[0]}`}</div>`;
+  let acts;
+  if (!c.rev){
+    acts = `${isMcq ? `` : `${c.hint ? `` : `<button class="btn" data-act="hint">רמז</button>`}<button class="btn primary" data-act="reveal">בדוק את עצמי</button>`}
+      <button class="btn" data-act="dk">לא יודע/ת</button><span class="spacer"></span><button class="btn ghost" data-act="skip">דלג ←</button>`;
+  } else {
+    acts = `<button class="btn primary" data-act="next">לשאלה הבאה ←</button>`;
+  }
+  let rev = ``;
+  if (c.rev){
+    rev += `<section class="reveal">`;
+    if (isMcq){
+      const ok = c.pick === q.c;
+      rev += `<div class="verdict ${ok ? `good` : `bad`}">${c.dk ? `התשובה הנכונה: ${q.o[q.c]}` : ok ? `נכון!` : `לא נכון. התשובה: ${q.o[q.c]}`}</div><p class="ans">${q.a}</p>`;
+    } else {
+      if (c.dk){
+        rev += `<div><h4>מה הייתה תשובה טובה</h4><ul class="plain">${q.k.map(k => `<li>${k}</li>`).join(``)}</ul></div>
+          <p class="small muted">״לא יודע/ת״ בראיון אמיתי עדיף על ניחוש, במיוחד אם מוסיפים ״והייתי בודק/ת את זה כך…״.</p>`;
+      } else {
+        const sc = c.checks.length / q.k.length;
+        rev += `<div><h4>נקודות מפתח: סמנו מה כיסיתם</h4><ul class="checks">${q.k.map((k, i) => `<li><label><input type="checkbox" data-act="check" data-i="${i}" ${c.checks.includes(i) ? `checked` : ``}><span>${k}</span></label></li>`).join(``)}</ul></div>
+          <div class="scoreline"><span id="scoretxt">כיסית ${c.checks.length} מתוך ${q.k.length}</span><span class="meter"><i id="scorebar" style="width:${pct(sc)}%"></i></span></div>`;
+      }
+      if (q.a) rev += `<div class="ans"><h4>הסבר</h4><p>${q.a}</p></div>`;
+      if (q.code) rev += `<div><h4>פתרון לדוגמה</h4><pre class="code" data-code="${qid}"></pre></div>`;
+      if (q.f) rev += `<div class="follow"><h4>המראיין ממשיך לחפור</h4><ul class="plain">${q.f.map(x => `<li>${x}</li>`).join(``)}</ul></div>`;
+      if (q.look) rev += `<p class="look"><b>מה בודקים כאן:</b> ${q.look}</p>`;
+    }
+    rev += `</section>`;
+  }
+  return `<div class="qtop"><div class="crumbs"><b>${sinfo.name}</b> · שאלה ${session.qi + 1} מתוך ${n}</div><div class="row"><div class="timer" id="qtimer">${timerTxt}</div><button class="btn ghost small" data-act="quit">סיים ראיון</button></div></div>
+  <div class="bar"><i style="width:${pct(session.qi / n)}%"></i></div>
+  <article class="qcard">
+    <div class="qhead">
+      <div class="qmeta"><span class="chip" style="${topicStyle(q.t)}">${TOPICS[q.t].n}</span>${diffDots(q.d)}<span class="who">שואל/ת: ${SM[q.s].who}</span></div>
+      ${q.ctx ? `<p class="ctx"><b>תרחיש:</b> ${q.ctx}</p>` : ``}
+      <h2 class="qtext">${q.q}</h2>
+    </div>
+    <div class="qbody">${body}<div class="actions">${acts}</div></div>
+    ${rev}
+  </article>
+  <p class="keys">קיצורי מקלדת: <kbd>Enter</kbd> בדיקה / הבא · <kbd>S</kbd> דילוג · <kbd>H</kbd> רמז</p>`;
+}
+
+function viewEnd(){
+  const st = session.plan[session.si]; const s = stageStats(st); const sinfo = stageInfo(st.stage);
+  const last = session.si === session.plan.length - 1;
+  return `<div class="panel stack">
+    <div class="label">סוף שלב</div>
+    <h2>${sinfo.name}</h2>
+    <div class="tiles">
+      <div class="tile"><div class="v">${s.score === null ? `–` : pct(s.score) + `%`}</div><div class="l">ציון ממוצע</div></div>
+      <div class="tile"><div class="v">${s.answered}</div><div class="l">שאלות שנענו</div></div>
+      <div class="tile"><div class="v">${s.skipped.length}</div><div class="l">דילגת</div></div>
+      <div class="tile"><div class="v">${s.dk}</div><div class="l">״לא יודע/ת״</div></div>
+    </div>
+    ${s.skipped.length ? `<div><h4 style="margin-bottom:6px">שאלות שדילגת עליהן</h4><ul class="qlist">${s.skipped.map(id => `<li><span>${QM[id].q}</span><span class="tag skip">דילוג</span></li>`).join(``)}</ul></div>` : ``}
+    <div class="actions">
+      ${s.skipped.length ? `<button class="btn primary" data-act="retry">חזור ל-${s.skipped.length} שאלות שדילגת</button>` : ``}
+      <button class="btn ${s.skipped.length ? `` : `primary`}" data-act="nextstage">${last ? `לסיכום הראיון` : `לשלב הבא ←`}</button>
+      <span class="spacer"></span>${last ? `` : `<button class="btn ghost" data-act="tosummary">סיים וראה סיכום</button>`}
+    </div>
+  </div>`;
+}
+
+function viewSummary(){
+  const all = session.plan.flatMap(p => [...new Set(p.qids)]);
+  const rs = all.map(id => [id, session.res[id]]).filter(x => x[1]);
+  const ans = rs.filter(x => x[1].st !== `skip`);
+  const total = avg(ans.map(x => x[1].score));
+  const skipped = rs.filter(x => x[1].st === `skip`).map(x => x[0]);
+  const weak = ans.filter(x => x[1].score < 0.6).map(x => x[0]);
+  const mins = Math.round((Date.now() - session.start) / 60000);
+  let verdict = `אין עדיין מספיק תשובות לציון.`;
+  if (total !== null){
+    verdict = total >= 0.8 ? `מוכנות גבוהה. עברו על השאלות שדילגתם עליהן, ואתם בכיוון הנכון.` :
+              total >= 0.6 ? `בסיס טוב. כדאי לחזור על הנושאים שמסומנים בצבע חלש למטה.` :
+              `כדאי עוד סבב תרגול. התחילו מהשליף הטכני במדריך, ואז תרגלו שוב את השאלות החלשות.`;
+  }
+  const stageRows = session.plan.map(p => { const s = stageStats(p); return [stageInfo(p.stage).name, s.score, `ch1`]; });
+  const tmap = {};
+  ans.forEach(([id, r]) => { const t = QM[id].t; (tmap[t] = tmap[t] || []).push(r.score); });
+  const topicRows = Object.entries(tmap).map(([t, a]) => [TOPICS[t].n, avg(a), TOPICS[t].c]).sort((a, b) => a[1] - b[1]);
+  const bars = rows => `<div class="bars">${rows.map(([n, v, c]) => `<div class="brow"><span class="nm">${n}</span><span class="track"><i style="width:${v === null ? 0 : pct(v)}%;background:${v !== null && v < 0.6 ? `var(--bad)` : `var(--${c})`}"></i></span><span class="pct">${v === null ? `–` : pct(v) + `%`}</span></div>`).join(``)}</div>`;
+  const redo = [...new Set([...skipped, ...weak])];
+  return `<div class="stack">
+  <section class="panel stack">
+    <div class="label">סיכום: ${esc(session.title)}</div>
+    <div class="row" style="gap:22px;align-items:flex-end"><div class="big">${total === null ? `–` : pct(total) + `%`}</div><p style="max-width:52ch">${verdict}</p></div>
+    <div class="tiles">
+      <div class="tile"><div class="v">${ans.length}</div><div class="l">שאלות שנענו</div></div>
+      <div class="tile"><div class="v">${skipped.length}</div><div class="l">דולגו</div></div>
+      <div class="tile"><div class="v">${weak.length}</div><div class="l">מתחת ל-60%</div></div>
+      <div class="tile"><div class="v">${mins}</div><div class="l">דקות</div></div>
+    </div>
+    <div class="actions">${redo.length ? `<button class="btn primary" data-act="redo" data-ids="${redo.join(`,`)}">תרגל ${redo.length} שאלות שדילגת או חלשות</button>` : ``}<button class="btn" data-act="full">סימולציה חדשה</button><button class="btn ghost" data-act="home">למסך הבית</button></div>
+  </section>
+  ${session.plan.length > 1 ? `<section class="panel"><h3 style="margin-bottom:12px">לפי שלב</h3>${bars(stageRows)}</section>` : ``}
+  ${topicRows.length ? `<section class="panel"><h3 style="margin-bottom:12px">לפי נושא</h3>${bars(topicRows)}</section>` : ``}
+  ${redo.length ? `<section class="panel"><h3 style="margin-bottom:6px">לחזור עליהן</h3><ul class="qlist">${redo.map(id => `<li><span>${QM[id].q}</span><span class="tag ${skipped.includes(id) ? `skip` : `weak`}">${skipped.includes(id) ? `דילוג` : pct(session.res[id].score) + `%`}</span></li>`).join(``)}</ul></section>` : ``}
+  </div>`;
+}
+
+function bankItems(){
+  const t = bankF.text.trim().toLowerCase();
+  return Q.filter(q => (!bankF.stage || q.s === bankF.stage) && (!bankF.topic || q.t === bankF.topic) &&
+    (!t || (q.q + ` ` + (q.k || []).join(` `) + ` ` + (q.ctx || ``) + ` ` + (q.a || ``)).toLowerCase().includes(t)));
+}
+function viewBankList(){
+  const items = bankItems();
+  if (!items.length) return `<p class="muted">אין שאלות שמתאימות לסינון. נסו לנקות את החיפוש.</p>`;
+  return items.map(q => {
+    const h = store.hist[q.id];
+    return `<details class="bq"><summary><span class="chip" style="${topicStyle(q.t)}">${TOPICS[q.t].n}</span><span class="qt">${q.q}</span>${h ? `<span class="hs">${pct(h.last)}%</span>` : ``}</summary>
+    <div class="inner">
+      ${q.ctx ? `<p class="ctx"><b>תרחיש:</b> ${q.ctx}</p>` : ``}
+      <div class="small muted">${SM[q.s].name} · קושי ${q.d}/3</div>
+      ${q.type === `mcq` ? `<ul class="plain">${q.o.map((o, i) => `<li${i === q.c ? ` style="color:var(--good);font-weight:700"` : ``}>${o}${i === q.c ? ` ✓` : ``}</li>`).join(``)}</ul>` : `<div><h4>נקודות מפתח</h4><ul class="plain">${q.k.map(k => `<li>${k}</li>`).join(``)}</ul></div>`}
+      ${q.a ? `<p class="ans">${q.a}</p>` : ``}
+      ${q.code ? `<pre class="code" data-code="${q.id}"></pre>` : ``}
+      ${q.f ? `<div class="follow"><h4>שאלות המשך</h4><ul class="plain">${q.f.map(x => `<li>${x}</li>`).join(``)}</ul></div>` : ``}
+      ${q.look ? `<p class="look"><b>מה בודקים כאן:</b> ${q.look}</p>` : ``}
+      <div><button class="btn small" data-act="one" data-id="${q.id}">תרגל את השאלה</button></div>
+    </div></details>`;
+  }).join(``);
+}
+function viewBank(){
+  return `<div class="stack">
+  <section class="panel stack">
+    <h2 style="font-size:24px">בנק שאלות</h2>
+    <div class="filters">
+      <div><label class="label" for="f-text">חיפוש</label><input type="search" id="f-text" placeholder="למשל: I2C, ripple, POD" value="${esc(bankF.text)}"></div>
+      <div><label class="label" for="f-stage">שלב</label><select id="f-stage"><option value="">כל השלבים</option>${STAGES.map(s => `<option value="${s.id}" ${bankF.stage === s.id ? `selected` : ``}>${s.name}</option>`).join(``)}</select></div>
+      <div><label class="label" for="f-topic">נושא</label><select id="f-topic"><option value="">כל הנושאים</option>${Object.entries(TOPICS).map(([k, v]) => `<option value="${k}" ${bankF.topic === k ? `selected` : ``}>${v.n}</option>`).join(``)}</select></div>
+    </div>
+    <div class="row"><span class="muted small" id="bank-count"></span><span style="flex:1"></span><button class="btn small" data-act="bankrun">תרגל את השאלות המסוננות</button></div>
+  </section>
+  <div id="bank-list"></div>
+  </div>`;
+}
+function renderBankList(){
+  const el = document.getElementById(`bank-list`); if (!el) return;
+  el.innerHTML = viewBankList(); fillCode(el);
+  document.getElementById(`bank-count`).textContent = `${bankItems().length} שאלות`;
+}
+
+function viewProgress(){
+  const ids = Object.keys(store.hist);
+  const overall = avg(ids.map(id => store.hist[id].last));
+  const rows = Object.entries(TOPICS).map(([t, v]) => {
+    const all = Q.filter(q => q.t === t); const done = all.filter(q => store.hist[q.id]);
+    return {n:v.n, c:v.c, total:all.length, done:done.length, m:avg(done.map(q => store.hist[q.id].last)), t};
+  });
+  const weak = weakIds();
+  return `<div class="stack">
+  <section class="panel stack">
+    <h2 style="font-size:24px">ההתקדמות שלי</h2>
+    <div class="tiles">
+      <div class="tile"><div class="v">${ids.length}/${Q.length}</div><div class="l">שאלות שתורגלו</div></div>
+      <div class="tile"><div class="v">${overall === null ? `–` : pct(overall) + `%`}</div><div class="l">ממוצע (ניסיון אחרון)</div></div>
+      <div class="tile"><div class="v">${weak.length}</div><div class="l">מתחת ל-60%</div></div>
+    </div>
+    ${weak.length ? `<div><button class="btn primary" data-act="weak">תרגל את ${weak.length} השאלות החלשות</button></div>` : ``}
+  </section>
+  <section class="panel">
+    <h3 style="margin-bottom:12px">שליטה לפי נושא</h3>
+    <div class="bars">${rows.map(r => `<div class="brow"><span class="nm">${r.n} <span class="muted small">(${r.done}/${r.total})</span></span><span class="track"><i style="width:${r.m === null ? 0 : pct(r.m)}%;background:${r.m !== null && r.m < 0.6 ? `var(--bad)` : `var(--${r.c})`}"></i></span><span class="pct">${r.m === null ? `–` : pct(r.m) + `%`}</span></div>`).join(``)}</div>
+    <p class="small muted" style="margin-top:12px">הציון לכל שאלה הוא אחוז נקודות המפתח שסימנתם, או נכון/לא נכון בשאלות אמריקאיות. ההתקדמות נשמרת רק בדפדפן הזה.</p>
+  </section>
+  <section class="panel row">
+    ${confirmReset ? `<span>למחוק את כל ההתקדמות והתשובות ששמרת?</span><button class="btn danger small" data-act="reset-yes">כן, למחוק</button><button class="btn small" data-act="reset-no">ביטול</button>`
+      : `<button class="btn ghost small" data-act="reset">איפוס ההתקדמות</button>`}
+  </section>
+  </div>`;
+}
+
+function fillCode(root){ root.querySelectorAll(`pre[data-code]`).forEach(p => { p.textContent = QM[p.dataset.code].code; }); }
+
+function render(){
+  document.querySelectorAll(`nav.tabs button`).forEach(b => b.setAttribute(`aria-selected`, String(b.dataset.tab === tab)));
+  document.getElementById(`guide`).hidden = tab !== `guide`;
+  app.hidden = tab === `guide`;
+  if (tab === `sim`){
+    if (!session) app.innerHTML = viewHome();
+    else if (session.phase === `intro`) app.innerHTML = viewIntro();
+    else if (session.phase === `q`) app.innerHTML = viewQuestion();
+    else if (session.phase === `end`) app.innerHTML = viewEnd();
+    else app.innerHTML = viewSummary();
+  } else if (tab === `bank`){ app.innerHTML = viewBank(); renderBankList(); }
+  else if (tab === `progress`){ app.innerHTML = viewProgress(); }
+  fillCode(app);
+}
+
+/* ---------- events ---------- */
+document.querySelector(`nav.tabs`).addEventListener(`click`, e => {
+  const b = e.target.closest(`button[data-tab]`); if (!b) return;
+  tab = b.dataset.tab; confirmReset = false; render(); window.scrollTo(0, 0);
+});
+
+document.addEventListener(`click`, e => {
+  const el = e.target.closest(`[data-act]`); if (!el || el.tagName === `INPUT`) return;
+  act(el.dataset.act, el);
+});
+document.addEventListener(`change`, e => {
+  const el = e.target;
+  if (el.matches(`input[data-act="check"]`)){
+    const i = +el.dataset.i; const c = session.cur;
+    c.checks = el.checked ? [...new Set([...c.checks, i])] : c.checks.filter(x => x !== i);
+    setScore();
+    const q = cur().q;
+    document.getElementById(`scoretxt`).textContent = `כיסית ${c.checks.length} מתוך ${q.k.length}`;
+    document.getElementById(`scorebar`).style.width = pct(c.checks.length / q.k.length) + `%`;
+  }
+  if (el.id === `f-stage`){ bankF.stage = el.value; renderBankList(); }
+  if (el.id === `f-topic`){ bankF.topic = el.value; renderBankList(); }
+});
+document.addEventListener(`input`, e => {
+  const el = e.target;
+  if (el.dataset && el.dataset.draft){ store.drafts[el.dataset.draft] = el.value; save(); }
+  if (el.id === `f-text`){ bankF.text = el.value; renderBankList(); }
+});
+
+function act(a, el){
+  switch (a){
+    case `set`: {
+      const k = el.dataset.k; let v = el.dataset.v;
+      store.settings[k] = k === `shuffle` ? v === `true` : +v; save(); render(); break;
+    }
+    case `full`: startSession(STAGES.map(s => ({stage:s.id, qids:pick(stageQs(s.id), store.settings.per)})), `סימולציה מלאה`); break;
+    case `quick`: startSession([{stage:`custom`, qids:shuffle(Q.filter(q => [`tech1`,`tech2`,`task`].includes(q.s)).map(q => q.id)).slice(0, 10)}], `10 שאלות טכניות`); break;
+    case `weak`: startSession([{stage:`custom`, qids:shuffle(weakIds())}], `תרגול שאלות חלשות`); break;
+    case `stage`: startSession([{stage:el.dataset.id, qids:pick(stageQs(el.dataset.id), 0)}], SM[el.dataset.id].name); break;
+    case `one`: startSession([{stage:`custom`, qids:[el.dataset.id]}], `שאלה בודדת`); break;
+    case `bankrun`: startSession([{stage:`custom`, qids:pick(bankItems().map(q => q.id), 0)}], `תרגול מבנק השאלות`); break;
+    case `redo`: startSession([{stage:`custom`, qids:el.dataset.ids.split(`,`)}], `חזרה על שאלות`); break;
+    case `begin`: session.phase = `q`; session.qi = 0; newCur(); render(); break;
+    case `skipstage`: nextStage(); break;
+    case `hint`: session.cur.hint = true; render(); break;
+    case `reveal`: session.cur.rev = true; setScore(); render(); break;
+    case `dk`: { const c = session.cur; c.rev = true; c.dk = true; session.res[cur().qid] = {st:`dk`, score:0}; render(); break; }
+    case `pick`: {
+      const c = session.cur; if (c.pick !== null) return;
+      const i = +el.dataset.i; c.pick = i; c.rev = true;
+      session.res[cur().qid] = {st:`ans`, score: i === cur().q.c ? 1 : 0}; render(); break;
+    }
+    case `skip`: session.res[cur().qid] = {st:`skip`}; advance(); break;
+    case `next`: finalize(); advance(); break;
+    case `retry`: {
+      const st = session.plan[session.si]; const sk = stageStats(st).skipped;
+      session.qi = st.qids.length; st.qids.push(...sk); session.phase = `q`; newCur(); render(); window.scrollTo(0, 0); break;
+    }
+    case `nextstage`: nextStage(); break;
+    case `tosummary`: session.phase = `summary`; render(); window.scrollTo(0, 0); break;
+    case `quit`: {
+      if (session.phase === `q` && session.cur.rev) finalize();
+      session.phase = `summary`; render(); window.scrollTo(0, 0); break;
+    }
+    case `home`: session = null; render(); window.scrollTo(0, 0); break;
+    case `reset`: confirmReset = true; render(); break;
+    case `reset-no`: confirmReset = false; render(); break;
+    case `reset-yes`: store.hist = {}; store.drafts = {}; save(); confirmReset = false; render(); break;
+  }
+}
+
+document.addEventListener(`keydown`, e => {
+  if (tab !== `sim` || !session || session.phase !== `q`) return;
+  const tg = e.target.tagName;
+  if (tg === `TEXTAREA` || tg === `INPUT` || tg === `SELECT` || e.metaKey || e.ctrlKey || e.altKey) return;
+  const c = session.cur; const isMcq = cur().q.type === `mcq`;
+  if (e.code === `Enter` && !(tg === `BUTTON`)){ e.preventDefault(); if (c.rev) act(`next`); else if (!isMcq) act(`reveal`); }
+  else if (e.code === `KeyS` && !c.rev){ act(`skip`); }
+  else if (e.code === `KeyH` && !c.rev && !isMcq){ act(`hint`); }
+});
+
+setInterval(() => {
+  const el = document.getElementById(`qtimer`);
+  if (!el || !session || !session.cur) return;
+  const s = Math.floor((Date.now() - session.cur.t) / 1000);
+  el.textContent = fmt(s);
+  el.classList.toggle(`over`, !!store.settings.timer && s > store.settings.timer);
+}, 1000);
+
+render();
+</script>
